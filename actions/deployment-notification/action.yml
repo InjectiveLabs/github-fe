@@ -20,6 +20,7 @@ inputs:
   staging_url:
     description: "URL of the staging deployment"
     required: true
+
 outputs:
   branch_name:
     description: "The branch name that was deployed"
@@ -63,6 +64,7 @@ runs:
         echo "🎯 Using specified branch: $BRANCH_NAME"
 
         echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+        echo "channel_name=test-slack" >> $GITHUB_OUTPUT
 
     - name: Extract Jira tickets from commits
       id: jira_tickets
@@ -74,17 +76,17 @@ runs:
         BRANCH_NAME="${{ steps.branch_name.outputs.branch_name }}"
         echo "🌿 Finding commits specific to branch: $BRANCH_NAME"
 
-        # Find the merge base between current branch and dev
+                # Find the merge base between current branch and dev
         MERGE_BASE=$(git merge-base HEAD origin/dev 2>/dev/null || git merge-base HEAD origin/main 2>/dev/null || echo "")
 
         if [ -n "$MERGE_BASE" ]; then
           echo "📍 Merge base found: $MERGE_BASE"
-          COMMIT_MESSAGES=$(git log --pretty:format:"%s %b" $MERGE_BASE..HEAD)
-          COMMIT_COUNT=$(git rev-list --count $MERGE_BASE..HEAD)
+          COMMIT_MESSAGES=$(git log --oneline "$MERGE_BASE..HEAD" 2>/dev/null || echo "")
+          COMMIT_COUNT=$(git rev-list --count "$MERGE_BASE..HEAD" 2>/dev/null || echo "0")
           echo "📊 Found $COMMIT_COUNT commits specific to this branch"
         else
           echo "⚠️ Could not find merge base, falling back to last 5 commits"
-          COMMIT_MESSAGES=$(git log --pretty:format:"%s %b" -5)
+          COMMIT_MESSAGES=$(git log --oneline -5 2>/dev/null || echo "")
         fi
 
         echo "📝 Analyzing commit messages..."
@@ -232,8 +234,6 @@ runs:
           echo "existing_message_text_b64=" >> $GITHUB_OUTPUT
         fi
 
-        echo "channel_name=$CHANNEL_NAME" >> $GITHUB_OUTPUT
-
     - name: Send Slack notification
       if: always()
       id: slack_notification
@@ -246,7 +246,7 @@ runs:
         DESCRIPTION="${{ inputs.description }}"
 
         AUTHOR="${{ github.actor }}"
-        CHANNEL_NAME="${{ steps.check_slack.outputs.channel_name }}"
+        CHANNEL_NAME="${{ steps.branch_name.outputs.channel_name }}"
         JIRA_LINKS="${{ steps.jira_tickets.outputs.jira_links }}"
         JIRA_TICKETS="${{ steps.jira_tickets.outputs.jira_tickets }}"
         EXISTING_JIRA_TICKETS="${{ steps.check_slack.outputs.existing_jira_tickets }}"
