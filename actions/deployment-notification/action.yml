@@ -155,14 +155,19 @@ runs:
         THIRTY_DAYS_AGO=$(date -d "30 days ago" '+%Y-%m-%d' 2>/dev/null || date -v-30d '+%Y-%m-%d')
 
         # Use USER TOKEN for searching messages (has read access) with 30-day limit
-        # Search for parent messages only (not threaded replies) by looking for the new title format
-        SEARCH_QUERY="in:#$CHANNEL_NAME \"${{ inputs.repo }} - Staging Deployment\" Branch: $BRANCH_NAME after:$THIRTY_DAYS_AGO"
+        # Search for parent messages by branch name - each branch gets its own deployment thread
+        SEARCH_QUERY="in:#$CHANNEL_NAME Branch: $BRANCH_NAME after:$THIRTY_DAYS_AGO"
+
+        echo "🔍 Search query: $SEARCH_QUERY"
 
         RESPONSE=$(curl -s -X POST \
           -H "Authorization: Bearer ${{ inputs.slack-user-token }}" \
           -H "Content-Type: application/x-www-form-urlencoded" \
           -d "query=$SEARCH_QUERY&count=10&sort=timestamp" \
           "https://slack.com/api/search.messages")
+
+        echo "🔍 Search response status: $(echo "$RESPONSE" | jq -r '.ok // "unknown"')"
+        echo "🔍 Search response: $(echo "$RESPONSE" | jq -r '.messages.total // "unknown"') total messages found"
 
 
         # Check if search was successful
