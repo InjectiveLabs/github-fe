@@ -388,7 +388,7 @@ runs:
           echo "🆕 Creating new deployment message"
           
           # Build message with optional Jira links (no network in body)
-          MESSAGE_TEXT="${{ inputs.repo }} - *Staging Deployment ($NETWORK)*\n\n*Branch:* \`$BRANCH_NAME\`\n*Description:* $DESCRIPTION\n*Author:* $AUTHOR"
+          MESSAGE_TEXT="*${{ inputs.repo }}* - Staging Deployment ($NETWORK)\n\n*Branch:* \`$BRANCH_NAME\`\n*Description:* $DESCRIPTION\n*Author:* $AUTHOR"
           
           if [ -n "$JIRA_LINKS" ]; then
             MESSAGE_TEXT="$MESSAGE_TEXT\n*Jira tickets:* $JIRA_LINKS"
