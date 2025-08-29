@@ -23,19 +23,23 @@ This action requires the following secrets to be configured in your repository:
 ### Basic Usage
 
 ```yaml
-- uses: your-org/github-fe/actions/deployment-notification@main
+- uses: InjectiveLabs/github-fe/actions/deployment-notification@master
   with:
     network: "Testnet"
     description: "Feature deployment"
+    slack-user-token: ${{ secrets.SLACK_USER_TOKEN }}
+    slack-bot-token: ${{ secrets.SLACK_BOT_TOKEN }}
 ```
 
 ### Advanced Usage
 
 ```yaml
-- uses: your-org/github-fe/actions/deployment-notification@main
+- uses: InjectiveLabs/github-fe/actions/deployment-notification@master
   with:
     network: "Mainnet"
     description: "Production deployment for user authentication"
+    slack-user-token: ${{ secrets.SLACK_USER_TOKEN }}
+    slack-bot-token: ${{ secrets.SLACK_BOT_TOKEN }}
 ```
 
 ### Complete Workflow Example
@@ -72,18 +76,22 @@ jobs:
         run: echo "Deploying..."
 
       # Use the reusable action
-      - uses: your-org/github-fe/actions/deployment-notification@main
+      - uses: InjectiveLabs/github-fe/actions/deployment-notification@master
         with:
           network: ${{ github.event.inputs.network }}
           description: ${{ github.event.inputs.description }}
+          slack-user-token: ${{ secrets.SLACK_USER_TOKEN }}
+          slack-bot-token: ${{ secrets.SLACK_BOT_TOKEN }}
 ```
 
 ## Inputs
 
-| Input         | Description                     | Required | Default               |
-| ------------- | ------------------------------- | -------- | --------------------- |
-| `network`     | Network name for the deployment | No       | `Mainnet`             |
-| `description` | Description of the deployment   | No       | `Frontend deployment` |
+| Input              | Description                           | Required | Default               |
+| ------------------ | ------------------------------------- | -------- | --------------------- |
+| `network`          | Network name for the deployment       | No       | `Mainnet`             |
+| `description`      | Description of the deployment         | No       | `Frontend deployment` |
+| `slack-user-token` | Slack user token for reading messages | Yes      | -                     |
+| `slack-bot-token`  | Slack bot token for sending messages  | Yes      | -                     |
 
 ## Hardcoded Values
 
@@ -143,6 +151,7 @@ Examples: `IL-123`, `il-4567`, `IL-89`
 - **Injective Labs Specific**: This action is configured specifically for Injective Labs workflows.
 - **Slack Channel**: All notifications are sent to the `#test-slack` channel.
 - **Message Timestamps**: The `message_ts` output always contains a valid timestamp, whether threading to an existing message or creating a new one.
+- **Token Security**: Slack tokens are passed as inputs and should be stored as repository secrets.
 
 ## Contributing
 

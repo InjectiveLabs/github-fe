@@ -9,6 +9,12 @@ inputs:
     description: "Description of the deployment"
     required: false
     default: "Frontend deployment"
+  slack-user-token:
+    description: "Slack user token for reading messages"
+    required: true
+  slack-bot-token:
+    description: "Slack bot token for sending messages"
+    required: true
 outputs:
   branch_name:
     description: "The branch name that was deployed"
@@ -150,7 +156,7 @@ runs:
         SEARCH_QUERY="in:#$CHANNEL_NAME \"New Frontend Deployment\" Branch: $BRANCH_NAME after:$THIRTY_DAYS_AGO"
 
         RESPONSE=$(curl -s -X POST \
-          -H "Authorization: Bearer ${{ secrets.SLACK_USER_TOKEN }}" \
+          -H "Authorization: Bearer ${{ inputs.slack-user-token }}" \
           -H "Content-Type: application/x-www-form-urlencoded" \
           -d "query=$SEARCH_QUERY&count=10&sort=timestamp" \
           "https://slack.com/api/search.messages")
@@ -185,7 +191,7 @@ runs:
             # This ensures we check against tickets mentioned ANYWHERE in the thread (not just original message)
             echo "🧵 Fetching all messages in thread to get complete ticket history..."
             THREAD_RESPONSE=$(curl -s -X GET \
-              -H "Authorization: Bearer ${{ secrets.SLACK_USER_TOKEN }}" \
+              -H "Authorization: Bearer ${{ inputs.slack-user-token }}" \
               "https://slack.com/api/conversations.replies?channel=$CHANNEL_ID&ts=$MESSAGE_TS")
             
             ALL_THREAD_JIRA_TICKETS=""
@@ -336,7 +342,7 @@ runs:
               # Update the main message using channel ID (required for chat.update API)
               CHANNEL_ID="${{ steps.check_slack.outputs.existing_channel_id }}"
               UPDATE_RESPONSE=$(curl -s -X POST \
-                -H "Authorization: Bearer ${{ secrets.SLACK_BOT_TOKEN }}" \
+                -H "Authorization: Bearer ${{ inputs.slack-bot-token }}" \
                 -H "Content-type: application/json" \
                 -d "{
                   \"channel\": \"$CHANNEL_ID\",
@@ -363,7 +369,7 @@ runs:
           THREAD_MESSAGE_TEXT="🔄 *New deployment*\n\n*Branch:* \`$BRANCH_NAME\`\n*Network:* $NETWORK\n*Description:* $DESCRIPTION\n*Author:* $AUTHOR"
           
           RESPONSE=$(curl -s -X POST \
-            -H "Authorization: Bearer ${{ secrets.SLACK_BOT_TOKEN }}" \
+            -H "Authorization: Bearer ${{ inputs.slack-bot-token }}" \
             -H "Content-type: application/json" \
             -d "{
               \"channel\": \"#$CHANNEL_NAME\",
@@ -386,7 +392,7 @@ runs:
           fi
           
           RESPONSE=$(curl -s -X POST \
-            -H "Authorization: Bearer ${{ secrets.SLACK_BOT_TOKEN }}" \
+            -H "Authorization: Bearer ${{ inputs.slack-bot-token }}" \
             -H "Content-type: application/json" \
             -d "{
               \"channel\": \"#$CHANNEL_NAME\",

@@ -65,24 +65,22 @@ jobs:
           echo "✅ Deployment completed successfully!"
 
       - name: Send deployment notification
-        uses: ./
+        uses: InjectiveLabs/github-fe/actions/deployment-notification@master
         with:
-          slack-channel: "deployments"
-          jira-base-url: "https://your-company.atlassian.net/browse/"
-          jira-prefix: "PROJ"
-          protected-branches: "main,develop,staging"
           network: ${{ github.event.inputs.network }}
           description: ${{ github.event.inputs.description }}
+          slack-user-token: ${{ secrets.SLACK_USER_TOKEN }}
+          slack-bot-token: ${{ secrets.SLACK_BOT_TOKEN }}
 
       - name: Deployment summary
         if: always()
         run: |
           echo "🎉 Deployment workflow completed!"
-          echo "Branch: ${{ steps.deploy.outputs.branch_name || 'N/A' }}"
+          echo "Branch: ${{ steps.deployment_notification.outputs.branch_name }}"
           echo "Network: ${{ github.event.inputs.network }}"
           echo "Environment: ${{ github.event.inputs.environment }}"
           echo "Author: ${{ github.actor }}"
 
-          if [ "${{ steps.deploy.outputs.jira_tickets }}" != "" ]; then
-            echo "Jira tickets: ${{ steps.deploy.outputs.jira_tickets }}"
+          if [ "${{ steps.deployment_notification.outputs.jira_tickets }}" != "" ]; then
+            echo "Jira tickets: ${{ steps.deployment_notification.outputs.jira_tickets }}"
           fi

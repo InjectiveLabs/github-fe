@@ -38,10 +38,12 @@ github-fe/
 
 ```yaml
 # In your repository's .github/workflows/ file
-- uses: your-org/github-fe/actions/deployment-notification@main
+- uses: InjectiveLabs/github-fe/actions/deployment-notification@master
   with:
     network: "Testnet"
     description: "Feature deployment"
+    slack-user-token: ${{ secrets.SLACK_USER_TOKEN }}
+    slack-bot-token: ${{ secrets.SLACK_BOT_TOKEN }}
 ```
 
 ### 2. Required Secrets
@@ -57,7 +59,7 @@ Most actions require specific secrets to be configured in your repository:
 For production use, pin to specific versions or tags:
 
 ```yaml
-- uses: your-org/github-fe/actions/deployment-notification@v1.0.0
+- uses: InjectiveLabs/github-fe/actions/deployment-notification@v1.0.0
 ```
 
 ## Adding New Actions
