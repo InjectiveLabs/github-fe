@@ -6,8 +6,7 @@ inputs:
     required: true
   network:
     description: "Network name for the deployment"
-    required: false
-    default: "Mainnet"
+    required: true
   description:
     description: "Description of the deployment"
     required: false
@@ -59,20 +58,9 @@ runs:
       id: branch_name
       shell: bash
       run: |
-        # Handle different event types to get the actual branch name
-        if [ "${{ github.event_name }}" = "pull_request" ]; then
-          # For PRs: get the source branch name from the pull request head
-          BRANCH_NAME="${{ github.event.pull_request.head.ref }}"
-          echo "🔧 PR event - using source branch: $BRANCH_NAME"
-        elif [ -n "${{ github.event.inputs.branch }}" ]; then
-          # For workflow_dispatch with branch parameter: use the specified branch
-          BRANCH_NAME="${{ github.event.inputs.branch }}"
-          echo "🎯 Using specified branch parameter: $BRANCH_NAME"
-        else
-          # For workflow_dispatch without branch parameter: use the current branch
-          BRANCH_NAME="${{ github.ref_name }}"
-          echo "🌿 Using current branch: $BRANCH_NAME"
-        fi
+        # Get branch name from workflow_dispatch input
+        BRANCH_NAME="${{ github.event.inputs.branch }}"
+        echo "🎯 Using specified branch: $BRANCH_NAME"
 
         echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
 
@@ -82,27 +70,21 @@ runs:
       run: |
         echo "🔍 Extracting Jira ticket references from commits..."
 
-        # Get commit messages for PR or branch-specific commits
-        if [ "${{ github.event_name }}" = "pull_request" ]; then
-          # For PR: get all commit messages in the PR
-          COMMIT_MESSAGES=$(git log --pretty=format:"%s %b" ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }})
+        # Get commit messages for branch-specific commits (after branching from dev)
+        BRANCH_NAME="${{ steps.branch_name.outputs.branch_name }}"
+        echo "🌿 Finding commits specific to branch: $BRANCH_NAME"
+
+        # Find the merge base between current branch and dev
+        MERGE_BASE=$(git merge-base HEAD origin/dev 2>/dev/null || git merge-base HEAD origin/main 2>/dev/null || echo "")
+
+        if [ -n "$MERGE_BASE" ]; then
+          echo "📍 Merge base found: $MERGE_BASE"
+          COMMIT_MESSAGES=$(git log --pretty:format:"%s %b" $MERGE_BASE..HEAD)
+          COMMIT_COUNT=$(git rev-list --count $MERGE_BASE..HEAD)
+          echo "📊 Found $COMMIT_COUNT commits specific to this branch"
         else
-          # For manual dispatch: get commits specific to this branch (after branching from dev)
-          BRANCH_NAME="${{ steps.branch_name.outputs.branch_name }}"
-          echo "🌿 Finding commits specific to branch: $BRANCH_NAME"
-          
-          # Find the merge base between current branch and dev
-          MERGE_BASE=$(git merge-base HEAD origin/dev 2>/dev/null || git merge-base HEAD origin/main 2>/dev/null || echo "")
-          
-          if [ -n "$MERGE_BASE" ]; then
-            echo "📍 Merge base found: $MERGE_BASE"
-            COMMIT_MESSAGES=$(git log --pretty:format:"%s %b" $MERGE_BASE..HEAD)
-            COMMIT_COUNT=$(git rev-list --count $MERGE_BASE..HEAD)
-            echo "📊 Found $COMMIT_COUNT commits specific to this branch"
-          else
-            echo "⚠️ Could not find merge base, falling back to last 5 commits"
-            COMMIT_MESSAGES=$(git log --pretty:format:"%s %b" -5)
-          fi
+          echo "⚠️ Could not find merge base, falling back to last 5 commits"
+          COMMIT_MESSAGES=$(git log --pretty:format:"%s %b" -5)
         fi
 
         echo "📝 Analyzing commit messages..."
@@ -259,14 +241,9 @@ runs:
       run: |
         BRANCH_NAME="${{ steps.branch_name.outputs.branch_name }}"
 
-        # Handle different event types
-        if [ "${{ github.event_name }}" = "pull_request" ]; then
-          NETWORK="Mainnet"
-          DESCRIPTION="PR Testing - Workflow changes validation"
-        else
-          NETWORK="${{ inputs.network }}"
-          DESCRIPTION="${{ inputs.description }}"
-        fi
+        # Use inputs for network and description
+        NETWORK="${{ inputs.network }}"
+        DESCRIPTION="${{ inputs.description }}"
 
         AUTHOR="${{ github.actor }}"
         CHANNEL_NAME="${{ steps.check_slack.outputs.channel_name }}"
