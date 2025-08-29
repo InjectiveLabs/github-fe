@@ -1,6 +1,9 @@
 name: "Deployment Notification"
 description: "Extract Jira tickets and send Slack notifications for deployments"
 inputs:
+  repo:
+    description: "Repository name (e.g., Mito, Injective)"
+    required: true
   network:
     description: "Network name for the deployment"
     required: false
@@ -152,8 +155,8 @@ runs:
         THIRTY_DAYS_AGO=$(date -d "30 days ago" '+%Y-%m-%d' 2>/dev/null || date -v-30d '+%Y-%m-%d')
 
         # Use USER TOKEN for searching messages (has read access) with 30-day limit
-        # Search for parent messages only (not threaded replies) by looking for "New Frontend Deployment"
-        SEARCH_QUERY="in:#$CHANNEL_NAME \"New Frontend Deployment\" Branch: $BRANCH_NAME after:$THIRTY_DAYS_AGO"
+        # Search for parent messages only (not threaded replies) by looking for the new title format
+        SEARCH_QUERY="in:#$CHANNEL_NAME \"${{ inputs.repo }} - Staging Deployment\" Branch: $BRANCH_NAME after:$THIRTY_DAYS_AGO"
 
         RESPONSE=$(curl -s -X POST \
           -H "Authorization: Bearer ${{ inputs.slack-user-token }}" \
@@ -366,7 +369,7 @@ runs:
           fi
           
           # Create threaded reply with deployment details (no Jira tickets since they're in main message)
-          THREAD_MESSAGE_TEXT="🔄 *New deployment*\n\n*Branch:* \`$BRANCH_NAME\`\n*Network:* $NETWORK\n*Description:* $DESCRIPTION\n*Author:* $AUTHOR"
+          THREAD_MESSAGE_TEXT="🔄 *New staging link deployed ($NETWORK)*\n\n*Branch:* \`$BRANCH_NAME\`\n*Description:* $DESCRIPTION\n*Author:* $AUTHOR"
           
           RESPONSE=$(curl -s -X POST \
             -H "Authorization: Bearer ${{ inputs.slack-bot-token }}" \
@@ -384,8 +387,8 @@ runs:
           # Create new message
           echo "🆕 Creating new deployment message"
           
-          # Build message with optional Jira links
-          MESSAGE_TEXT="🚀 *New Frontend Deployment*\n\n*Branch:* \`$BRANCH_NAME\`\n*Network:* $NETWORK\n*Description:* $DESCRIPTION\n*Author:* $AUTHOR"
+          # Build message with optional Jira links (no network in body)
+          MESSAGE_TEXT="${{ inputs.repo }} - *Staging Deployment ($NETWORK)*\n\n*Branch:* \`$BRANCH_NAME\`\n*Description:* $DESCRIPTION\n*Author:* $AUTHOR"
           
           if [ -n "$JIRA_LINKS" ]; then
             MESSAGE_TEXT="$MESSAGE_TEXT\n*Jira tickets:* $JIRA_LINKS"

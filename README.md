@@ -14,6 +14,7 @@ A comprehensive action that handles deployment notifications with Jira ticket ex
 - Smart Slack threading to avoid duplicate messages
 - Jira ticket tracking and deduplication
 - Pre-configured for Injective Labs (IL- tickets, test-slack channel)
+- Repository branding in Slack messages
 
 **Use Case:** Perfect for any deployment workflow that needs to notify teams and track Jira tickets.
 
@@ -40,6 +41,7 @@ github-fe/
 # In your repository's .github/workflows/ file
 - uses: InjectiveLabs/github-fe/actions/deployment-notification@master
   with:
+    repo: "Mito"
     network: "Testnet"
     description: "Feature deployment"
     slack-user-token: ${{ secrets.SLACK_USER_TOKEN }}

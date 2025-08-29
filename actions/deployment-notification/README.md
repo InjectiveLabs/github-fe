@@ -10,6 +10,7 @@ A reusable GitHub Action that extracts Jira tickets from commits and sends Slack
 - **Smart Slack Threading**: Creates threaded replies for existing deployments instead of duplicate messages
 - **Jira Ticket Tracking**: Updates main messages with new tickets and avoids duplicates
 - **Injective Labs Integration**: Pre-configured for IL- tickets and test-slack channel
+- **Repository Branding**: Customizable repository name in Slack messages
 
 ## Prerequisites
 
@@ -25,6 +26,7 @@ This action requires the following secrets to be configured in your repository:
 ```yaml
 - uses: InjectiveLabs/github-fe/actions/deployment-notification@master
   with:
+    repo: "Mito"
     network: "Testnet"
     description: "Feature deployment"
     slack-user-token: ${{ secrets.SLACK_USER_TOKEN }}
@@ -36,6 +38,7 @@ This action requires the following secrets to be configured in your repository:
 ```yaml
 - uses: InjectiveLabs/github-fe/actions/deployment-notification@master
   with:
+    repo: "Injective"
     network: "Mainnet"
     description: "Production deployment for user authentication"
     slack-user-token: ${{ secrets.SLACK_USER_TOKEN }}
@@ -78,6 +81,7 @@ jobs:
       # Use the reusable action
       - uses: InjectiveLabs/github-fe/actions/deployment-notification@master
         with:
+          repo: "Mito"
           network: ${{ github.event.inputs.network }}
           description: ${{ github.event.inputs.description }}
           slack-user-token: ${{ secrets.SLACK_USER_TOKEN }}
@@ -86,12 +90,13 @@ jobs:
 
 ## Inputs
 
-| Input              | Description                           | Required | Default               |
-| ------------------ | ------------------------------------- | -------- | --------------------- |
-| `network`          | Network name for the deployment       | No       | `Mainnet`             |
-| `description`      | Description of the deployment         | No       | `Frontend deployment` |
-| `slack-user-token` | Slack user token for reading messages | Yes      | -                     |
-| `slack-bot-token`  | Slack bot token for sending messages  | Yes      | -                     |
+| Input              | Description                             | Required | Default               |
+| ------------------ | --------------------------------------- | -------- | --------------------- |
+| `repo`             | Repository name (e.g., Mito, Injective) | Yes      | -                     |
+| `network`          | Network name for the deployment         | No       | `Mainnet`             |
+| `description`      | Description of the deployment           | No       | `Frontend deployment` |
+| `slack-user-token` | Slack user token for reading messages   | Yes      | -                     |
+| `slack-bot-token`  | Slack bot token for sending messages    | Yes      | -                     |
 
 ## Hardcoded Values
 
@@ -139,6 +144,30 @@ The action looks for tickets in the format: `IL-{NUMBER}` where:
 
 Examples: `IL-123`, `il-4567`, `IL-89`
 
+## Slack Message Format
+
+### New Messages
+
+```
+Mito - Staging Deployment (Mainnet)
+
+Branch: feature-branch-name
+Description: Feature deployment
+Author: username
+
+Jira tickets: IL-123, IL-456
+```
+
+### Threaded Replies
+
+```
+🔄 New staging link deployed (Mainnet)
+
+Branch: feature-branch-name
+Description: Feature deployment
+Author: username
+```
+
 ## Error Handling
 
 - **Slack API Failures**: Gracefully falls back to creating new messages if search fails
@@ -152,6 +181,7 @@ Examples: `IL-123`, `il-4567`, `IL-89`
 - **Slack Channel**: All notifications are sent to the `#test-slack` channel.
 - **Message Timestamps**: The `message_ts` output always contains a valid timestamp, whether threading to an existing message or creating a new one.
 - **Token Security**: Slack tokens are passed as inputs and should be stored as repository secrets.
+- **Repository Branding**: The `repo` input customizes the message title and search queries.
 
 ## Contributing
 
