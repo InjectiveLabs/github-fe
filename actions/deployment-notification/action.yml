@@ -18,6 +18,9 @@ inputs:
   slack-bot-token:
     description: "Slack bot token for sending messages"
     required: true
+  staging_url:
+    description: "URL of the staging deployment"
+    required: true
 outputs:
   branch_name:
     description: "The branch name that was deployed"
@@ -374,7 +377,18 @@ runs:
           fi
           
           # Create threaded reply with deployment details (no Jira tickets since they're in main message)
-          THREAD_MESSAGE_TEXT="🔄 *New staging link deployed ($NETWORK)*\n\n*Branch:* \`$BRANCH_NAME\`\n*Description:* $DESCRIPTION\n*Author:* $AUTHOR"
+          THREAD_MESSAGE_TEXT="🔄 *New staging link deployed ($NETWORK)*"
+          
+          if [ -n "$DESCRIPTION" ]; then
+            THREAD_MESSAGE_TEXT="$THREAD_MESSAGE_TEXT\n*Description:* $DESCRIPTION"
+          fi
+          
+          # Add staging URL if provided
+          if [ -n "${{ inputs.staging_url }}" ]; then
+            THREAD_MESSAGE_TEXT="$THREAD_MESSAGE_TEXT\n*Staging URL:* <${{ inputs.staging_url }}|${{ inputs.staging_url }}>"
+          fi
+          
+          THREAD_MESSAGE_TEXT="$THREAD_MESSAGE_TEXT\n*Author:* $AUTHOR"
           
           RESPONSE=$(curl -s -X POST \
             -H "Authorization: Bearer ${{ inputs.slack-bot-token }}" \
@@ -393,7 +407,14 @@ runs:
           echo "🆕 Creating new deployment message"
           
           # Build message with optional Jira links (no network in body)
-          MESSAGE_TEXT="*${{ inputs.repo }}* - Staging Deployment ($NETWORK)\n\n*Branch:* \`$BRANCH_NAME\`\n*Description:* $DESCRIPTION\n*Author:* $AUTHOR"
+          MESSAGE_TEXT="*${{ inputs.repo }}* - Staging Deployment ($NETWORK)\n\n*Branch:* \`$BRANCH_NAME\`\n*Description:* $DESCRIPTION"
+          
+          # Add staging URL if provided
+          if [ -n "${{ inputs.staging_url }}" ]; then
+            MESSAGE_TEXT="$MESSAGE_TEXT\n*Staging URL:* <${{ inputs.staging_url }}|${{ inputs.staging_url }}>"
+          fi
+          
+          MESSAGE_TEXT="$MESSAGE_TEXT\n*Author:* $AUTHOR"
           
           if [ -n "$JIRA_LINKS" ]; then
             MESSAGE_TEXT="$MESSAGE_TEXT\n*Jira tickets:* $JIRA_LINKS"
