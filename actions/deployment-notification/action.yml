@@ -1,0 +1,417 @@
+name: "Deployment Notification"
+description: "Extract Jira tickets and send Slack notifications for deployments"
+inputs:
+  network:
+    description: "Network name for the deployment"
+    required: false
+    default: "Mainnet"
+  description:
+    description: "Description of the deployment"
+    required: false
+    default: "Frontend deployment"
+outputs:
+  branch_name:
+    description: "The branch name that was deployed"
+    value: ${{ steps.branch_name.outputs.branch_name }}
+  jira_tickets:
+    description: "Comma-separated list of Jira tickets found"
+    value: ${{ steps.jira_tickets.outputs.jira_tickets }}
+  jira_links:
+    description: "Formatted Jira links for Slack"
+    value: ${{ steps.jira_tickets.outputs.jira_links }}
+  message_found:
+    description: "Whether an existing Slack message was found"
+    value: ${{ steps.check_slack.outputs.message_found }}
+  existing_message_ts:
+    description: "Timestamp of existing Slack message if found"
+    value: ${{ steps.check_slack.outputs.existing_message_ts }}
+  existing_channel_id:
+    description: "Channel ID of existing Slack message if found"
+    value: ${{ steps.check_slack.outputs.existing_channel_id }}
+  existing_jira_tickets:
+    description: "Jira tickets from existing Slack message"
+    value: ${{ steps.check_slack.outputs.existing_jira_tickets }}
+  existing_message_text_b64:
+    description: "Base64 encoded existing message text"
+    value: ${{ steps.check_slack.outputs.existing_message_text_b64 }}
+  channel_name:
+    description: "Slack channel name used"
+    value: ${{ steps.check_slack.outputs.channel_name }}
+  message_ts:
+    description: "Timestamp of the Slack message (either existing or newly created)"
+    value: ${{ steps.slack_notification.outputs.message_ts }}
+runs:
+  using: composite
+  steps:
+    - name: Get branch name
+      id: branch_name
+      shell: bash
+      run: |
+        # Handle different event types to get the actual branch name
+        if [ "${{ github.event_name }}" = "pull_request" ]; then
+          # For PRs: get the source branch name from the pull request head
+          BRANCH_NAME="${{ github.event.pull_request.head.ref }}"
+          echo "🔧 PR event - using source branch: $BRANCH_NAME"
+        elif [ -n "${{ github.event.inputs.branch }}" ]; then
+          # For workflow_dispatch with branch parameter: use the specified branch
+          BRANCH_NAME="${{ github.event.inputs.branch }}"
+          echo "🎯 Using specified branch parameter: $BRANCH_NAME"
+        else
+          # For workflow_dispatch without branch parameter: use the current branch
+          BRANCH_NAME="${{ github.ref_name }}"
+          echo "🌿 Using current branch: $BRANCH_NAME"
+        fi
+
+        echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+
+    - name: Extract Jira tickets from commits
+      id: jira_tickets
+      shell: bash
+      run: |
+        echo "🔍 Extracting Jira ticket references from commits..."
+
+        # Get commit messages for PR or branch-specific commits
+        if [ "${{ github.event_name }}" = "pull_request" ]; then
+          # For PR: get all commit messages in the PR
+          COMMIT_MESSAGES=$(git log --pretty=format:"%s %b" ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }})
+        else
+          # For manual dispatch: get commits specific to this branch (after branching from dev)
+          BRANCH_NAME="${{ steps.branch_name.outputs.branch_name }}"
+          echo "🌿 Finding commits specific to branch: $BRANCH_NAME"
+          
+          # Find the merge base between current branch and dev
+          MERGE_BASE=$(git merge-base HEAD origin/dev 2>/dev/null || git merge-base HEAD origin/main 2>/dev/null || echo "")
+          
+          if [ -n "$MERGE_BASE" ]; then
+            echo "📍 Merge base found: $MERGE_BASE"
+            COMMIT_MESSAGES=$(git log --pretty:format:"%s %b" $MERGE_BASE..HEAD)
+            COMMIT_COUNT=$(git rev-list --count $MERGE_BASE..HEAD)
+            echo "📊 Found $COMMIT_COUNT commits specific to this branch"
+          else
+            echo "⚠️ Could not find merge base, falling back to last 5 commits"
+            COMMIT_MESSAGES=$(git log --pretty:format:"%s %b" -5)
+          fi
+        fi
+
+        echo "📝 Analyzing commit messages..."
+
+        # Extract all IL patterns using grep with regex (hardcoded for Injective Labs)
+        JIRA_MATCHES=$(echo "$COMMIT_MESSAGES" | grep -ioE '(IL|il)-[0-9]{3,5}' | sort | uniq -i || true)
+
+        if [ -z "$JIRA_MATCHES" ]; then
+          echo "📋 No Jira tickets found in commits"
+          echo "jira_tickets=" >> $GITHUB_OUTPUT
+          echo "jira_links=" >> $GITHUB_OUTPUT
+        else
+          echo "🎫 Found Jira ticket patterns:"
+          echo "$JIRA_MATCHES"
+          
+          # Convert to uppercase and deduplicate
+          UNIQUE_TICKETS=$(echo "$JIRA_MATCHES" | tr '[:lower:]' '[:upper:]' | sort | uniq)
+          
+          echo "✅ Unique tickets (normalized):"
+          echo "$UNIQUE_TICKETS"
+          
+          # Generate Jira links (hardcoded for Injective Labs)
+          JIRA_LINKS=""
+          TICKET_LIST=""
+          
+          for ticket in $UNIQUE_TICKETS; do
+            JIRA_URL="https://injective-labs.atlassian.net/browse/$ticket"
+            if [ -z "$JIRA_LINKS" ]; then
+              JIRA_LINKS="<$JIRA_URL|$ticket>"
+              TICKET_LIST="$ticket"
+            else
+              JIRA_LINKS="$JIRA_LINKS, <$JIRA_URL|$ticket>"
+              TICKET_LIST="$TICKET_LIST, $ticket"
+            fi
+          done
+          
+          echo "🔗 Generated Jira links: $JIRA_LINKS"
+          echo "jira_tickets=$TICKET_LIST" >> $GITHUB_OUTPUT
+          echo "jira_links=$JIRA_LINKS" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Check for existing Slack message
+      id: check_slack
+      shell: bash
+      run: |
+        # Hybrid approach: Use user token to READ messages, bot token to SEND messages
+        BRANCH_NAME="${{ steps.branch_name.outputs.branch_name }}"
+        CHANNEL_NAME="test-slack"  # Hardcoded for Injective Labs
+
+        echo "🔍 Searching for existing messages for branch: $BRANCH_NAME"
+
+        # Calculate date 30 days ago for search limitation
+        THIRTY_DAYS_AGO=$(date -d "30 days ago" '+%Y-%m-%d' 2>/dev/null || date -v-30d '+%Y-%m-%d')
+
+        # Use USER TOKEN for searching messages (has read access) with 30-day limit
+        # Search for parent messages only (not threaded replies) by looking for "New Frontend Deployment"
+        SEARCH_QUERY="in:#$CHANNEL_NAME \"New Frontend Deployment\" Branch: $BRANCH_NAME after:$THIRTY_DAYS_AGO"
+
+        RESPONSE=$(curl -s -X POST \
+          -H "Authorization: Bearer ${{ secrets.SLACK_USER_TOKEN }}" \
+          -H "Content-Type: application/x-www-form-urlencoded" \
+          -d "query=$SEARCH_QUERY&count=10&sort=timestamp" \
+          "https://slack.com/api/search.messages")
+
+
+        # Check if search was successful
+        if echo "$RESPONSE" | jq -e '.ok == true' > /dev/null; then
+          # Extract message timestamp and channel ID if found
+          MESSAGE_TS=$(echo "$RESPONSE" | jq -r '.messages.matches[0].ts // empty')
+          CHANNEL_ID=$(echo "$RESPONSE" | jq -r '.messages.matches[0].channel.id // empty')
+          
+          if [ -n "$MESSAGE_TS" ] && [ "$MESSAGE_TS" != "null" ]; then
+            echo "✅ Found existing message with timestamp: $MESSAGE_TS"
+            echo "🧵 Will thread new deployment to existing message"
+            
+            # Extract Jira tickets from the existing message to avoid duplicates
+            EXISTING_MESSAGE_TEXT=$(echo "$RESPONSE" | jq -r '.messages.matches[0].text // empty')
+            EXISTING_JIRA_TICKETS=""
+            
+            if [ -n "$EXISTING_MESSAGE_TEXT" ]; then
+              # Extract IL patterns from existing message text (handles both plain text and Slack link format)
+              EXISTING_JIRA_TICKETS=$(echo "$EXISTING_MESSAGE_TEXT" | grep -ioE 'IL-[0-9]{3,5}' | tr '[:lower:]' '[:upper:]' | sort | uniq | tr '\n' ',' | sed 's/,$//' || true)
+              
+              if [ -n "$EXISTING_JIRA_TICKETS" ]; then
+                echo "📋 Existing message contains Jira tickets: $EXISTING_JIRA_TICKETS"
+              else
+                echo "📋 No Jira tickets found in existing message"
+              fi
+            fi
+            
+            # Fetch ALL messages in the thread to get complete Jira ticket history
+            # This ensures we check against tickets mentioned ANYWHERE in the thread (not just original message)
+            echo "🧵 Fetching all messages in thread to get complete ticket history..."
+            THREAD_RESPONSE=$(curl -s -X GET \
+              -H "Authorization: Bearer ${{ secrets.SLACK_USER_TOKEN }}" \
+              "https://slack.com/api/conversations.replies?channel=$CHANNEL_ID&ts=$MESSAGE_TS")
+            
+            ALL_THREAD_JIRA_TICKETS=""
+            
+            if echo "$THREAD_RESPONSE" | jq -e '.ok == true' > /dev/null; then
+              # Extract all message texts from the thread
+              ALL_THREAD_MESSAGES=$(echo "$THREAD_RESPONSE" | jq -r '.messages[].text // empty' | tr '\n' ' ')
+              
+              # Extract IL patterns from ALL thread messages
+              ALL_THREAD_JIRA_TICKETS=$(echo "$ALL_THREAD_MESSAGES" | grep -ioE 'IL-[0-9]{3,5}' | tr '[:lower:]' '[:upper:]' | sort | uniq | tr '\n' ',' | sed 's/,$//' || true)
+              
+              if [ -n "$ALL_THREAD_JIRA_TICKETS" ]; then
+                echo "📋 Complete thread Jira ticket history: $ALL_THREAD_JIRA_TICKETS"
+              else
+                echo "📋 No Jira tickets found in entire thread"
+              fi
+              
+              # Also extract the original message text for updating later
+              ORIGINAL_MESSAGE_TEXT=$(echo "$THREAD_RESPONSE" | jq -r '.messages[0].text // empty')
+              ORIGINAL_MESSAGE_TEXT_B64=$(echo "$ORIGINAL_MESSAGE_TEXT" | base64 -w 0)
+            else
+              echo "⚠️ Failed to fetch thread messages, falling back to original message only"
+              ALL_THREAD_JIRA_TICKETS="$EXISTING_JIRA_TICKETS"
+              ORIGINAL_MESSAGE_TEXT_B64=$(echo "$EXISTING_MESSAGE_TEXT" | base64 -w 0)
+            fi
+            
+            echo "existing_message_ts=$MESSAGE_TS" >> $GITHUB_OUTPUT
+            echo "existing_channel_id=$CHANNEL_ID" >> $GITHUB_OUTPUT
+            echo "existing_jira_tickets=$ALL_THREAD_JIRA_TICKETS" >> $GITHUB_OUTPUT
+            echo "existing_message_text_b64=$ORIGINAL_MESSAGE_TEXT_B64" >> $GITHUB_OUTPUT
+            echo "message_found=true" >> $GITHUB_OUTPUT
+          else
+            echo "📝 No existing message found for branch: $BRANCH_NAME"
+            echo "🆕 Will create new message"
+            echo "message_found=false" >> $GITHUB_OUTPUT
+            echo "existing_channel_id=" >> $GITHUB_OUTPUT
+            echo "existing_jira_tickets=" >> $GITHUB_OUTPUT
+            echo "existing_message_text_b64=" >> $GITHUB_OUTPUT
+          fi
+        else
+          echo "❌ Search API failed, will create new message"
+          echo "message_found=false" >> $GITHUB_OUTPUT
+          echo "existing_channel_id=" >> $GITHUB_OUTPUT
+          echo "existing_jira_tickets=" >> $GITHUB_OUTPUT
+          echo "existing_message_text_b64=" >> $GITHUB_OUTPUT
+        fi
+
+        echo "channel_name=$CHANNEL_NAME" >> $GITHUB_OUTPUT
+
+    - name: Send Slack notification
+      if: always()
+      id: slack_notification
+      shell: bash
+      run: |
+        BRANCH_NAME="${{ steps.branch_name.outputs.branch_name }}"
+
+        # Handle different event types
+        if [ "${{ github.event_name }}" = "pull_request" ]; then
+          NETWORK="Mainnet"
+          DESCRIPTION="PR Testing - Workflow changes validation"
+        else
+          NETWORK="${{ inputs.network }}"
+          DESCRIPTION="${{ inputs.description }}"
+        fi
+
+        AUTHOR="${{ github.actor }}"
+        CHANNEL_NAME="${{ steps.check_slack.outputs.channel_name }}"
+        JIRA_LINKS="${{ steps.jira_tickets.outputs.jira_links }}"
+        JIRA_TICKETS="${{ steps.jira_tickets.outputs.jira_tickets }}"
+        EXISTING_JIRA_TICKETS="${{ steps.check_slack.outputs.existing_jira_tickets }}"
+
+        echo "📢 Posting deployment notification to #$CHANNEL_NAME"
+
+        if [ "${{ steps.check_slack.outputs.message_found }}" = "true" ]; then
+          # Thread to existing message AND potentially update main message with new tickets
+          MESSAGE_TS="${{ steps.check_slack.outputs.existing_message_ts }}"
+          echo "🧵 Threading to existing message (timestamp: $MESSAGE_TS)"
+          
+          # Check if we have NEW Jira tickets to add to the main message
+          NEW_TICKETS_FOR_MAIN=""
+          if [ -n "$JIRA_TICKETS" ]; then
+            echo "🔍 Checking for new Jira tickets against thread history..."
+            
+            # Convert comma-separated ticket lists to arrays for comparison
+            IFS=', ' read -ra CURRENT_ARRAY <<< "$JIRA_TICKETS"
+            IFS=', ' read -ra EXISTING_ARRAY <<< "$EXISTING_JIRA_TICKETS"
+            
+            for ticket in "${CURRENT_ARRAY[@]}"; do
+              ticket=$(echo "$ticket" | xargs)
+              
+              # Check if this ticket is NOT in the existing tickets
+              FOUND_IN_EXISTING=false
+              for existing_ticket in "${EXISTING_ARRAY[@]}"; do
+                existing_ticket=$(echo "$existing_ticket" | xargs)
+                if [ "$ticket" = "$existing_ticket" ]; then
+                  FOUND_IN_EXISTING=true
+                  break
+                fi
+              done
+              
+              if [ "$FOUND_IN_EXISTING" = "false" ]; then
+                echo "✅ New ticket found for main message: $ticket"
+                if [ -z "$NEW_TICKETS_FOR_MAIN" ]; then
+                  NEW_TICKETS_FOR_MAIN="$ticket"
+                else
+                  NEW_TICKETS_FOR_MAIN="$NEW_TICKETS_FOR_MAIN, $ticket"
+                fi
+              fi
+            done
+          fi
+          
+          # Update main message if we have new tickets
+          if [ -n "$NEW_TICKETS_FOR_MAIN" ]; then
+            echo "📝 Updating main message to add new tickets: $NEW_TICKETS_FOR_MAIN"
+            
+            # Use the original message text we extracted from the thread response
+            # Decode the base64 encoded message text from the previous step
+            CURRENT_MAIN_TEXT=$(echo "${{ steps.check_slack.outputs.existing_message_text_b64 }}" | base64 -d)
+            
+            if [ -n "$CURRENT_MAIN_TEXT" ]; then
+              echo "📄 Using original message text from thread response"
+              
+              # Generate new ticket links
+              NEW_JIRA_LINKS=""
+              IFS=', ' read -ra NEW_TICKETS_ARRAY <<< "$NEW_TICKETS_FOR_MAIN"
+              for ticket in "${NEW_TICKETS_ARRAY[@]}"; do
+                ticket=$(echo "$ticket" | xargs)
+                JIRA_URL="https://injective-labs.atlassian.net/browse/$ticket"
+                if [ -z "$NEW_JIRA_LINKS" ]; then
+                  NEW_JIRA_LINKS="<$JIRA_URL|$ticket>"
+                else
+                  NEW_JIRA_LINKS="$NEW_JIRA_LINKS, <$JIRA_URL|$ticket>"
+                fi
+              done
+              
+              # Check if the main message already has Jira tickets section
+              if echo "$CURRENT_MAIN_TEXT" | grep -q "Jira tickets:"; then
+                # Append to existing Jira tickets line (add at the end)
+                # Use # as delimiter to avoid conflicts with | characters in Slack links
+                UPDATED_MAIN_TEXT=$(echo "$CURRENT_MAIN_TEXT" | sed "s#\(\*Jira tickets:\* .*\)#\1, $NEW_JIRA_LINKS#")
+                echo "📝 Appending to existing Jira tickets section"
+              else
+                # Add new Jira tickets section
+                UPDATED_MAIN_TEXT="$CURRENT_MAIN_TEXT\n*Jira tickets:* $NEW_JIRA_LINKS"
+                echo "📝 Adding new Jira tickets section"
+              fi
+              
+              # Update the main message using channel ID (required for chat.update API)
+              CHANNEL_ID="${{ steps.check_slack.outputs.existing_channel_id }}"
+              UPDATE_RESPONSE=$(curl -s -X POST \
+                -H "Authorization: Bearer ${{ secrets.SLACK_BOT_TOKEN }}" \
+                -H "Content-type: application/json" \
+                -d "{
+                  \"channel\": \"$CHANNEL_ID\",
+                  \"ts\": \"$MESSAGE_TS\",
+                  \"text\": \"$UPDATED_MAIN_TEXT\"
+                }" \
+                "https://slack.com/api/chat.update")
+              
+              UPDATE_SUCCESS=$(echo "$UPDATE_RESPONSE" | jq -r '.ok // false')
+              if [ "$UPDATE_SUCCESS" = "true" ]; then
+                echo "✅ Successfully updated main message with new tickets: $NEW_JIRA_LINKS"
+              else
+                UPDATE_ERROR=$(echo "$UPDATE_RESPONSE" | jq -r '.error // "unknown"')
+                echo "⚠️ Failed to update main message: $UPDATE_ERROR"
+              fi
+            else
+              echo "⚠️ Could not retrieve original message text from thread response"
+            fi
+          else
+            echo "📋 No new tickets to add to main message"
+          fi
+          
+          # Create threaded reply with deployment details (no Jira tickets since they're in main message)
+          THREAD_MESSAGE_TEXT="🔄 *New deployment*\n\n*Branch:* \`$BRANCH_NAME\`\n*Network:* $NETWORK\n*Description:* $DESCRIPTION\n*Author:* $AUTHOR"
+          
+          RESPONSE=$(curl -s -X POST \
+            -H "Authorization: Bearer ${{ secrets.SLACK_BOT_TOKEN }}" \
+            -H "Content-type: application/json" \
+            -d "{
+              \"channel\": \"#$CHANNEL_NAME\",
+              \"thread_ts\": \"$MESSAGE_TS\",
+              \"text\": \"$THREAD_MESSAGE_TEXT\"
+            }" \
+            "https://slack.com/api/chat.postMessage")
+          
+          # For existing messages, use the existing message timestamp
+          FINAL_MESSAGE_TS="$MESSAGE_TS"
+        else
+          # Create new message
+          echo "🆕 Creating new deployment message"
+          
+          # Build message with optional Jira links
+          MESSAGE_TEXT="🚀 *New Frontend Deployment*\n\n*Branch:* \`$BRANCH_NAME\`\n*Network:* $NETWORK\n*Description:* $DESCRIPTION\n*Author:* $AUTHOR"
+          
+          if [ -n "$JIRA_LINKS" ]; then
+            MESSAGE_TEXT="$MESSAGE_TEXT\n*Jira tickets:* $JIRA_LINKS"
+          fi
+          
+          RESPONSE=$(curl -s -X POST \
+            -H "Authorization: Bearer ${{ secrets.SLACK_BOT_TOKEN }}" \
+            -H "Content-type: application/json" \
+            -d "{
+              \"channel\": \"#$CHANNEL_NAME\",
+              \"text\": \"$MESSAGE_TEXT\"
+            }" \
+            "https://slack.com/api/chat.postMessage")
+          
+          # For new messages, extract the timestamp from the response
+          if echo "$RESPONSE" | jq -e '.ok == true' > /dev/null; then
+            FINAL_MESSAGE_TS=$(echo "$RESPONSE" | jq -r '.ts // empty')
+            echo "📝 New message created with timestamp: $FINAL_MESSAGE_TS"
+          else
+            FINAL_MESSAGE_TS=""
+            echo "⚠️ Could not extract timestamp from new message response"
+          fi
+        fi
+
+        # Check if message was posted successfully
+        SUCCESS=$(echo "$RESPONSE" | jq -r '.ok // false')
+        if [ "$SUCCESS" = "true" ]; then
+          echo "✅ Slack notification posted successfully!"
+        else
+          ERROR=$(echo "$RESPONSE" | jq -r '.error // "unknown"')
+          echo "⚠️ Slack notification failed: $ERROR"
+        fi
+
+        # Output the final message timestamp (either existing or newly created)
+        echo "message_ts=$FINAL_MESSAGE_TS" >> $GITHUB_OUTPUT
