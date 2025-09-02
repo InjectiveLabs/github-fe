@@ -1,0 +1,25 @@
+name: "Generate GitHub Release Notes (Node.js)"
+description: "Generate GitHub release notes from git commits using Node.js"
+
+inputs:
+  previous_tag:
+    description: "The previous tag to compare against"
+    required: true
+  repo_url:
+    description: "The URL of the repository"
+    required: true
+
+outputs:
+  new_version:
+    description: "Incremented github tag number"
+    value: ${{ steps.release_notes.outputs.new_version }}
+  release_notes:
+    description: "Generated release notes from git commits"
+    value: ${{ steps.release_notes.outputs.release_notes }}
+  bugsnag_version:
+    description: "The app version to use for Bugsnag"
+    value: ${{ steps.release_notes.outputs.bugsnag_version }}
+
+runs:
+  using: "node20"
+  main: "main.js"
