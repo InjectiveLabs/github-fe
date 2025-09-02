@@ -1,0 +1,148 @@
+name: "Generate GitHub Release Notes"
+description: "Generate GitHub release notes from git commits"
+
+inputs:
+  previous_tag:
+    description: "The previous tag to compare against"
+    required: true
+  repo_url:
+    description: "The URL of the repository"
+    required: true
+
+outputs:
+  new_version:
+    description: "Incremented github tag number"
+    value: ${{ steps.increment_version.outputs.new_version }}
+  release_notes:
+    description: "Generated release notes from git commits"
+    value: "${{ steps.generate_notes.outputs.release_notes }}"
+  bugsnag_version:
+    description: "The app version to use for Bugsnag"
+    value: ${{ steps.compute_bugsnag_app_version.outputs.app_version }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Increment version
+      id: increment_version
+      shell: bash
+      run: |
+        # Remove 'v' prefix if present and split the version into major, minor, patch components
+        tag_without_v="${{ inputs.previous_tag }}"
+        tag_without_v="${tag_without_v#v}"
+        IFS='.' read -r major minor patch <<< "$tag_without_v"
+
+        # Validate that we have all three components
+        if [[ -z "$major" || -z "$minor" || -z "$patch" ]]; then
+          echo "Error: Invalid tag format. Expected format: v1.2.3 or 1.2.3"
+          exit 1
+        fi
+
+        # Increment the patch number
+        patch=$((patch + 1))
+        new_version="v$major.$minor.$patch"
+        echo "new_version=${new_version}" >> $GITHUB_ENV
+        echo "new_version=${new_version}" >> $GITHUB_OUTPUT
+
+    - name: Generate Release Notes
+      id: generate_notes
+      shell: bash
+      run: |
+        previous_tag="${{ inputs.previous_tag }}"
+        repo_url="${{ inputs.repo_url }}"
+
+        # Validate that the previous tag exists
+        if ! git rev-parse --verify "$previous_tag" >/dev/null 2>&1; then
+          echo "Error: Tag '$previous_tag' does not exist"
+          exit 1
+        fi
+
+        # Check if there are no commits
+        if ! git rev-list --count "$previous_tag"..HEAD >/dev/null 2>&1; then
+          echo "No commits found between ${previous_tag} and HEAD."
+          formatted_notes="No new commits"
+        else
+          # Create associative array to map commits to PR numbers
+          declare -A commit_to_pr
+
+          # Get all merge commits and map their child commits to PR numbers
+          while IFS='|' read -r merge_hash merge_message; do
+          if [[ -n "$merge_hash" && -n "$merge_message" ]]; then
+            # Extract PR number from merge message
+            pr_number=$(echo "$merge_message" | grep -oE "#[0-9]+")
+            if [[ -n "$pr_number" ]]; then
+              # Get all commits that were merged in this PR (the feature branch commits)
+              while read -r commit_hash; do
+                if [[ -n "$commit_hash" ]]; then
+                  commit_to_pr["$commit_hash"]="$pr_number"
+                fi
+              done < <(git log --pretty=format:"%H" "$merge_hash^1..$merge_hash^2")
+            fi
+          fi
+        done < <(git log "$previous_tag"..HEAD --grep="Merge pull request" --pretty=format:"%H|%s")
+          
+          # Get all commits in the range (excluding merge commits)
+          all_commits=$(git log "$previous_tag"..HEAD --pretty=format:"%H|%s|%an|%ae" --no-merges)
+          
+          formatted_notes=""
+          
+          # Process each commit
+          while IFS='|' read -r commit_hash commit_message commit_author commit_email; do
+            if [[ -n "$commit_hash" && -n "$commit_message" ]]; then
+              # Clean up commit message (escape backticks and quotes)
+              commit_message=$(echo "$commit_message" | sed 's/`/\\`/g' | sed 's/"/\\"/g')
+              
+              # Format author
+              if [[ "$commit_author" =~ " " ]]; then
+                github_author="${commit_author} (${commit_email})"
+              else
+                github_author="@${commit_author}"
+              fi
+              
+              # Check if this commit is part of a PR
+              pr_info=""
+              if [[ -n "${commit_to_pr[$commit_hash]:-}" ]]; then
+                pr_number="${commit_to_pr[$commit_hash]}"
+                pr_link="[${pr_number}](${repo_url}/pull/${pr_number:1})"
+                pr_info=" in ${pr_link}"
+              fi
+              
+              # Add to formatted notes
+              formatted_notes="${formatted_notes}\n- ${commit_hash:0:7} - ${commit_message} by ${github_author}${pr_info}"
+            fi
+          done <<< "$all_commits"
+          
+
+        fi
+
+        if [[ -z "$formatted_notes" ]]; then
+          formatted_notes="No new commits"
+        fi
+
+        # Export the formatted notes to the GitHub environment
+        echo "release_notes<<EOF" >> $GITHUB_OUTPUT
+        echo -e "${formatted_notes}" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+
+    - name: Compute Bugsnag App Version
+      id: compute_bugsnag_app_version
+      shell: bash
+      run: |
+        # Assign new_version from earlier step output to a shell variable
+        new_version="${{ steps.increment_version.outputs.new_version }}"
+        release_notes="${{ steps.generate_notes.outputs.release_notes }}"
+
+        # Initialize app_version with new_version
+        app_version="$new_version"
+
+        # Conditional assignment based on release_notes output
+        if [[ "$release_notes" == "No new commits" ]]; then
+          app_version="${{ inputs.previous_tag }}"
+        fi
+
+        # Set the app_version as an output
+        echo "app_version=$app_version" >> $GITHUB_OUTPUT
+
+        # Log for debug purposes
+        echo "Release notes: $release_notes"
+        echo "Bugsnag version: $app_version"

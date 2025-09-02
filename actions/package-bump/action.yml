@@ -1,0 +1,64 @@
+name: "Package bump"
+description: "Package bump"
+
+inputs:
+  gh_token:
+    description: "GitHub token"
+    required: true
+  folder_path:
+    description: "Folder path"
+    required: false
+  repository_url:
+    description: "Repository url"
+    required: true
+  repository_branch:
+    description: "repository branch"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Sleep for 30s
+      uses: juliangruber/sleep-action@v2.0.0
+      with:
+        time: 30s
+
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        path: tmp
+        token: ${{ inputs.gh_token }}
+        repository: ${{ inputs.repository_url }}
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20.x
+
+    - name: Install dependencies
+      shell: bash
+      run: |
+        if [ -n "${{ inputs.folder_path }}" ]; then
+          cd "tmp/${{ inputs.folder_path }}"
+        else
+          cd tmp
+        fi
+        yarn install
+
+    - name: Commit changes
+      shell: bash
+      run: |
+        cd tmp
+        git config user.name "${{ github.actor }}"
+        git config user.email "${{ github.actor }}@users.noreply.github.com"
+
+        # Check if there are any changes to commit
+        if [ -z "$(git status --porcelain)" ]; then
+          echo "No changes to commit"
+          exit 0
+        fi
+
+        git add .
+        git commit -m "chore: package bump"
+        git push origin "${{ inputs.repository_branch }}"

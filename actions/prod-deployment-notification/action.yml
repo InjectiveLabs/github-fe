@@ -1,0 +1,47 @@
+name: "Production Deployment Notification"
+description: "Sends Slack notifications for production deployments with release notes"
+inputs:
+  webhook-url:
+    description: "Slack webhook URL for notifications"
+    required: true
+  project-name:
+    description: "Name of the project being deployed"
+    required: true
+  release-notes:
+    description: "Release notes or commit information"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: "Notify Slack"
+      id: notify_slack
+      shell: bash
+      run: |
+        # Determine if this is a deployment with new commits or a rebuild
+        if [ "${{ inputs.release-notes }}" != "No new commits" ]; then
+          # Deployment with new commits
+          payload='{
+            "text": "'"<!here> 🚀 ${{ inputs.project-name }} deployed to Mainnet!\nView the deployment results on Github: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}.\nThe commits deployed are:\n${{ inputs.release-notes }}"'",
+            "attachments": [
+              {
+                "text": "${{ inputs.project-name }} deployed to Mainnet ✅",
+                "color": "#22bb33"
+              }
+            ]
+          }'
+        else
+          # Rebuild without new commits
+          payload='{
+            "text": "'"<!here> 🚀 ${{ inputs.project-name }} Rebuilt on Mainnet! Good guys, close your eyes! 🛠️😄"'",
+            "attachments": [
+              {
+                "text": "View the deployment results on Github: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}.",
+                "color": "#22bb33"
+              }
+            ]
+          }'
+        fi
+
+        # Send the notification
+        curl -X POST -H 'Content-type: application/json' --data "${payload}" "${{ inputs.webhook-url }}"
