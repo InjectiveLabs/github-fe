@@ -64,7 +64,7 @@ runs:
         echo "🎯 Using specified branch: $BRANCH_NAME"
 
         echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
-        echo "channel_name=test-slack" >> $GITHUB_OUTPUT
+        echo "channel_name=frontend-staging" >> $GITHUB_OUTPUT
 
     - name: Extract Jira tickets from commits
       id: jira_tickets
@@ -134,7 +134,7 @@ runs:
       run: |
         # Hybrid approach: Use user token to READ messages, bot token to SEND messages
         BRANCH_NAME="${{ steps.branch_name.outputs.branch_name }}"
-        CHANNEL_NAME="test-slack"  # Hardcoded for Injective Labs
+        CHANNEL_NAME="frontend-staging"  # Hardcoded for Injective Labs
 
         echo "🔍 Searching for existing messages for branch: $BRANCH_NAME"
 
