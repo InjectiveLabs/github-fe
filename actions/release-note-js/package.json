@@ -4,11 +4,15 @@
   "description": "Generate GitHub release notes from git commits",
   "main": "main.js",
   "scripts": {
+    "build": "ncc build main.js -o dist",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
     "@actions/core": "^1.10.0",
     "@actions/exec": "^1.1.1"
+  },
+  "devDependencies": {
+    "@vercel/ncc": "^0.38.1"
   },
   "keywords": [
     "github",
