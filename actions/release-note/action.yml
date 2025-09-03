@@ -62,17 +62,23 @@ runs:
         echo "Current HEAD: $(git rev-parse HEAD)"
         echo "Tag commit: $(git rev-parse "$previous_tag")"
 
-        # Check if there are any commits between the previous tag and HEAD
-        commit_count=$(git rev-list --count "$previous_tag"..HEAD 2>/dev/null || echo "0")
+        # Get all commits in the range (excluding merge commits for cleaner output)
+        echo "🔍 Running git command: git log \"$previous_tag\"..HEAD --no-merges --pretty=format:\"%H|%s|%an|%ae\""
+        all_commits=$(git log "$previous_tag"..HEAD --no-merges --pretty=format:"%H|%s|%an|%ae" 2>/dev/null)
+
+        # Count the actual commits we'll be processing (excluding merges)
+        commit_count=$(echo "$all_commits" | wc -l)
+
+        # Debug: Show total commit counts for comparison
+        total_commits=$(git rev-list --count "$previous_tag"..HEAD 2>/dev/null || echo "0")
+        echo "📊 Total commits (including merges): $total_commits"
+        echo "📊 Regular commits (excluding merges): $commit_count"
 
         if [[ "$commit_count" -eq 0 ]]; then
           echo "No commits found between ${previous_tag} and HEAD."
           formatted_notes="No new commits"
         else
-          echo "Found $commit_count commits between ${previous_tag} and HEAD"
-          
-          # Get all commits in the range (excluding merge commits for cleaner output)
-          all_commits=$(git log "$previous_tag"..HEAD --no-merges --pretty=format:"%H|%s|%an|%ae" 2>/dev/null)
+          echo "Found $commit_count commits between ${previous_tag} and HEAD (excluding merge commits)"
           
           # Debug: Show raw commit data
           echo "Raw commits found:"

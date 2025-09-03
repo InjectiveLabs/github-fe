@@ -142,8 +142,9 @@ runs:
         THIRTY_DAYS_AGO=$(date -d "30 days ago" '+%Y-%m-%d' 2>/dev/null || date -v-30d '+%Y-%m-%d')
 
         # Use USER TOKEN for searching messages (has read access) with 30-day limit
-        # Search for parent messages by branch name - each branch gets its own deployment thread
-        SEARCH_QUERY="in:#$CHANNEL_NAME Branch: $BRANCH_NAME after:$THIRTY_DAYS_AGO"
+        # Search for parent messages by repo and branch name - each repo+branch combination gets its own deployment thread
+        REPO_NAME="${{ inputs.repo }}"
+        SEARCH_QUERY="in:#$CHANNEL_NAME \"$REPO_NAME\" \"Branch: $BRANCH_NAME\" after:$THIRTY_DAYS_AGO"
 
         echo "🔍 Search query: $SEARCH_QUERY"
 
