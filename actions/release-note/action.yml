@@ -57,62 +57,27 @@ runs:
           exit 1
         fi
 
-        # Debug: Show current HEAD and tag info
-        echo "Previous tag: $previous_tag"
-        echo "Current HEAD: $(git rev-parse HEAD)"
-        echo "Tag commit: $(git rev-parse "$previous_tag")"
-
         # Get all commits in the range (excluding merge commits for cleaner output)
-        echo "🔍 Running git command: git log \"$previous_tag\"..HEAD --no-merges --pretty=format:\"%H|%s|%an|%ae\""
         all_commits=$(git log "$previous_tag"..HEAD --no-merges --pretty=format:"%H|%s|%an|%ae" 2>/dev/null)
 
         # Count the actual commits we'll be processing (excluding merges)
         commit_count=$(echo "$all_commits" | wc -l)
 
-        # Debug: Show total commit counts for comparison
-        total_commits=$(git rev-list --count "$previous_tag"..HEAD 2>/dev/null || echo "0")
-        echo "📊 Total commits (including merges): $total_commits"
-        echo "📊 Regular commits (excluding merges): $commit_count"
-
         if [[ "$commit_count" -eq 0 ]]; then
-          echo "No commits found between ${previous_tag} and HEAD."
           formatted_notes="No new commits"
         else
-          echo "Found $commit_count commits between ${previous_tag} and HEAD (excluding merge commits)"
-          
-          # Debug: Show raw commit data
-          echo "Raw commits found:"
-          echo "$all_commits" | head -10
-          
           formatted_notes=""
 
-          # Process each commit using a more robust method
+          # Process each commit using a robust method
           if [[ -n "$all_commits" ]]; then
-            echo "🔧 Starting commit processing..."
-            
             # Use a temporary file to avoid subshell and newline issues
             temp_file=$(mktemp)
-            echo "📁 Created temp file: $temp_file"
             printf "%s\n" "$all_commits" > "$temp_file"
             
-            # Debug: Show temp file contents
-            echo "📄 Temp file contents:"
-            cat -n "$temp_file"
-            
-            commit_counter=0
             while IFS='|' read -r commit_hash commit_message commit_author commit_email; do
-              commit_counter=$((commit_counter + 1))
-              echo "🔄 Processing commit #$commit_counter: $commit_hash"
-              echo "   Message: $commit_message"
-              echo "   Author: $commit_author"
-              echo "   Email: $commit_email"
-              
               if [[ -n "$commit_hash" && -n "$commit_message" ]]; then
-                echo "   ✅ Valid commit data, processing..."
-                
                 # Clean up commit message (escape backticks and quotes)
                 commit_message=$(echo "$commit_message" | sed 's/`/\\`/g' | sed 's/"/\\"/g')
-                echo "   🧹 Cleaned message: $commit_message"
                 
                 # Format author
                 if [[ "$commit_author" =~ " " ]]; then
@@ -120,49 +85,24 @@ runs:
                 else
                   github_author="@${commit_author}"
                 fi
-                echo "   👤 Formatted author: $github_author"
                 
                 # Check if this commit message contains a PR number
-                echo "   🔍 Checking for PR number..."
                 pr_info=""
-                echo "   🔍 Running grep command on: '$commit_message'"
                 set +e  # Disable exit on error temporarily
                 pr_number=$(echo "$commit_message" | grep -oE "#[0-9]+" | head -1)
-                grep_exit_code=$?
                 set -e  # Re-enable exit on error
-                echo "   🔍 Grep exit code: $grep_exit_code"
-                echo "   🔍 PR number result: '$pr_number'"
                 if [[ -n "$pr_number" ]]; then
-                  echo "   🔍 PR number found, creating link..."
                   pr_link="[${pr_number}](${repo_url}/pull/${pr_number:1})"
                   pr_info=" in ${pr_link}"
-                  echo "   🔗 Found PR: $pr_number"
-                else
-                  echo "   🔍 No PR number found"
                 fi
                 
                 # Add to formatted notes
-                echo "   📝 Adding to formatted notes..."
-                old_notes="$formatted_notes"
-                echo "   📝 Old notes length: ${#old_notes}"
-                echo "   📝 Creating new note entry..."
-                new_entry="- ${commit_hash:0:7} - ${commit_message} by ${github_author}${pr_info}"
-                echo "   📝 New entry: $new_entry"
-                formatted_notes="${formatted_notes}\n${new_entry}"
-                echo "   📝 Added to notes. Length before: ${#old_notes}, after: ${#formatted_notes}"
-              else
-                echo "   ❌ Invalid commit data, skipping..."
+                formatted_notes="${formatted_notes}\n- ${commit_hash:0:7} - ${commit_message} by ${github_author}${pr_info}"
               fi
             done < "$temp_file"
             
-            echo "🏁 Finished processing $commit_counter commits"
-            echo "📊 Final formatted_notes length: ${#formatted_notes}"
-            
             # Clean up temporary file
             rm -f "$temp_file"
-            echo "🗑️ Cleaned up temp file"
-          else
-            echo "No commits found in the specified range"
           fi
         fi
 
@@ -193,7 +133,3 @@ runs:
 
         # Set the app_version as an output
         echo "app_version=$app_version" >> $GITHUB_OUTPUT
-
-        # Log for debug purposes
-        echo "Release notes: $release_notes"
-        echo "Bugsnag version: $app_version"
