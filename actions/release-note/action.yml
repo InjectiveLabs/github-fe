@@ -59,8 +59,16 @@ runs:
 
         # Debug: Show what commits exist in the range (including merges)
         echo "🔍 DEBUG: All commits in range (including merges):"
-        git log "$previous_tag"..HEAD --pretty=format:"%H|%s|%an|%ae" 2>/dev/null | head -10
-        echo "🔍 DEBUG: Total commits in range (including merges): $(git log "$previous_tag"..HEAD --pretty=format:"%H" 2>/dev/null | wc -l)"
+        all_commits_with_merges=$(git log "$previous_tag"..HEAD --pretty=format:"%H|%s|%an|%ae" 2>/dev/null)
+        echo "$all_commits_with_merges"
+
+        # Count commits properly (handle empty output)
+        if [[ -n "$all_commits_with_merges" ]]; then
+          total_commits=$(echo "$all_commits_with_merges" | wc -l)
+        else
+          total_commits=0
+        fi
+        echo "🔍 DEBUG: Total commits in range (including merges): $total_commits"
 
         # Get all commits in the range (excluding merge commits for cleaner output)
         all_commits=$(git log "$previous_tag"..HEAD --no-merges --pretty=format:"%H|%s|%an|%ae" 2>/dev/null)
@@ -68,10 +76,14 @@ runs:
         # Debug: Show what we got from git log after --no-merges
         echo "🔍 DEBUG: Commits after --no-merges filter:"
         echo "$all_commits"
-        echo "🔍 DEBUG: Commits after --no-merges count: $(echo "$all_commits" | wc -l)"
 
-        # Count the actual commits we'll be processing (excluding merges)
-        commit_count=$(echo "$all_commits" | wc -l)
+        # Count non-merge commits properly
+        if [[ -n "$all_commits" ]]; then
+          commit_count=$(echo "$all_commits" | wc -l)
+        else
+          commit_count=0
+        fi
+        echo "🔍 DEBUG: Commits after --no-merges count: $commit_count"
 
         if [[ "$commit_count" -eq 0 ]]; then
           # If no non-merge commits, check if there are any merge commits
