@@ -123,17 +123,27 @@ runs:
                 echo "   👤 Formatted author: $github_author"
                 
                 # Check if this commit message contains a PR number
+                echo "   🔍 Checking for PR number..."
                 pr_info=""
                 pr_number=$(echo "$commit_message" | grep -oE "#[0-9]+" | head -1)
+                echo "   🔍 PR number result: '$pr_number'"
                 if [[ -n "$pr_number" ]]; then
+                  echo "   🔍 PR number found, creating link..."
                   pr_link="[${pr_number}](${repo_url}/pull/${pr_number:1})"
                   pr_info=" in ${pr_link}"
                   echo "   🔗 Found PR: $pr_number"
+                else
+                  echo "   🔍 No PR number found"
                 fi
                 
                 # Add to formatted notes
+                echo "   📝 Adding to formatted notes..."
                 old_notes="$formatted_notes"
-                formatted_notes="${formatted_notes}\n- ${commit_hash:0:7} - ${commit_message} by ${github_author}${pr_info}"
+                echo "   📝 Old notes length: ${#old_notes}"
+                echo "   📝 Creating new note entry..."
+                new_entry="- ${commit_hash:0:7} - ${commit_message} by ${github_author}${pr_info}"
+                echo "   📝 New entry: $new_entry"
+                formatted_notes="${formatted_notes}\n${new_entry}"
                 echo "   📝 Added to notes. Length before: ${#old_notes}, after: ${#formatted_notes}"
               else
                 echo "   ❌ Invalid commit data, skipping..."
