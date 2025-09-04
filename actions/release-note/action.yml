@@ -88,14 +88,31 @@ runs:
 
           # Process each commit using a more robust method
           if [[ -n "$all_commits" ]]; then
+            echo "🔧 Starting commit processing..."
+            
             # Use a temporary file to avoid subshell and newline issues
             temp_file=$(mktemp)
+            echo "📁 Created temp file: $temp_file"
             printf "%s\n" "$all_commits" > "$temp_file"
             
+            # Debug: Show temp file contents
+            echo "📄 Temp file contents:"
+            cat -n "$temp_file"
+            
+            commit_counter=0
             while IFS='|' read -r commit_hash commit_message commit_author commit_email; do
+              commit_counter=$((commit_counter + 1))
+              echo "🔄 Processing commit #$commit_counter: $commit_hash"
+              echo "   Message: $commit_message"
+              echo "   Author: $commit_author"
+              echo "   Email: $commit_email"
+              
               if [[ -n "$commit_hash" && -n "$commit_message" ]]; then
+                echo "   ✅ Valid commit data, processing..."
+                
                 # Clean up commit message (escape backticks and quotes)
                 commit_message=$(echo "$commit_message" | sed 's/`/\\`/g' | sed 's/"/\\"/g')
+                echo "   🧹 Cleaned message: $commit_message"
                 
                 # Format author
                 if [[ "$commit_author" =~ " " ]]; then
@@ -103,6 +120,7 @@ runs:
                 else
                   github_author="@${commit_author}"
                 fi
+                echo "   👤 Formatted author: $github_author"
                 
                 # Check if this commit message contains a PR number
                 pr_info=""
@@ -110,15 +128,24 @@ runs:
                 if [[ -n "$pr_number" ]]; then
                   pr_link="[${pr_number}](${repo_url}/pull/${pr_number:1})"
                   pr_info=" in ${pr_link}"
+                  echo "   🔗 Found PR: $pr_number"
                 fi
                 
                 # Add to formatted notes
+                old_notes="$formatted_notes"
                 formatted_notes="${formatted_notes}\n- ${commit_hash:0:7} - ${commit_message} by ${github_author}${pr_info}"
+                echo "   📝 Added to notes. Length before: ${#old_notes}, after: ${#formatted_notes}"
+              else
+                echo "   ❌ Invalid commit data, skipping..."
               fi
             done < "$temp_file"
             
+            echo "🏁 Finished processing $commit_counter commits"
+            echo "📊 Final formatted_notes length: ${#formatted_notes}"
+            
             # Clean up temporary file
             rm -f "$temp_file"
+            echo "🗑️ Cleaned up temp file"
           else
             echo "No commits found in the specified range"
           fi
