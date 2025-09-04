@@ -110,6 +110,11 @@ runs:
           formatted_notes="No new commits"
         fi
 
+        # Debug: Echo the formatted notes
+        echo "=== FORMATTED NOTES ==="
+        echo -e "${formatted_notes}"
+        echo "=== END FORMATTED NOTES ==="
+
         # Export the formatted notes to the GitHub environment
         echo "release_notes<<EOF" >> $GITHUB_OUTPUT
         echo -e "${formatted_notes}" >> $GITHUB_OUTPUT
