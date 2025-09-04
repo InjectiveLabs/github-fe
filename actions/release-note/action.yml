@@ -88,9 +88,8 @@ runs:
 
           # Process each commit
           if [[ -n "$all_commits" ]]; then
-            # Ensure the last line ends with a newline to prevent read command failure
-            all_commits=$(printf "%s\n" "$all_commits")
-            while IFS='|' read -r commit_hash commit_message commit_author commit_email; do
+            # Process commits using a more robust method that handles missing newlines
+            echo "$all_commits" | while IFS='|' read -r commit_hash commit_message commit_author commit_email; do
               if [[ -n "$commit_hash" && -n "$commit_message" ]]; then
                 # Clean up commit message (escape backticks and quotes)
                 commit_message=$(echo "$commit_message" | sed 's/`/\\`/g' | sed 's/"/\\"/g')
@@ -113,7 +112,7 @@ runs:
                 # Add to formatted notes
                 formatted_notes="${formatted_notes}\n- ${commit_hash:0:7} - ${commit_message} by ${github_author}${pr_info}"
               fi
-            done <<< "$all_commits"
+            done
           else
             echo "No commits found in the specified range"
           fi
