@@ -125,7 +125,12 @@ runs:
                 # Check if this commit message contains a PR number
                 echo "   🔍 Checking for PR number..."
                 pr_info=""
+                echo "   🔍 Running grep command on: '$commit_message'"
+                set +e  # Disable exit on error temporarily
                 pr_number=$(echo "$commit_message" | grep -oE "#[0-9]+" | head -1)
+                grep_exit_code=$?
+                set -e  # Re-enable exit on error
+                echo "   🔍 Grep exit code: $grep_exit_code"
                 echo "   🔍 PR number result: '$pr_number'"
                 if [[ -n "$pr_number" ]]; then
                   echo "   🔍 PR number found, creating link..."
