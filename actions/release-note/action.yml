@@ -57,25 +57,8 @@ runs:
           exit 1
         fi
 
-        # Debug: Show what commits exist in the range (including merges)
-        echo "🔍 DEBUG: All commits in range (including merges):"
-        all_commits_with_merges=$(git log "$previous_tag"..HEAD --pretty=format:"%H|%s|%an|%ae" 2>/dev/null)
-        echo "$all_commits_with_merges"
-
-        # Count commits properly (handle empty output)
-        if [[ -n "$all_commits_with_merges" ]]; then
-          total_commits=$(echo "$all_commits_with_merges" | wc -l)
-        else
-          total_commits=0
-        fi
-        echo "🔍 DEBUG: Total commits in range (including merges): $total_commits"
-
         # Get all commits in the range (excluding merge commits for cleaner output)
         all_commits=$(git log "$previous_tag"..HEAD --no-merges --pretty=format:"%H|%s|%an|%ae" 2>/dev/null)
-
-        # Debug: Show what we got from git log after --no-merges
-        echo "🔍 DEBUG: Commits after --no-merges filter:"
-        echo "$all_commits"
 
         # Count non-merge commits properly
         if [[ -n "$all_commits" ]]; then
@@ -83,7 +66,6 @@ runs:
         else
           commit_count=0
         fi
-        echo "🔍 DEBUG: Commits after --no-merges count: $commit_count"
 
         if [[ "$commit_count" -eq 0 ]]; then
           # If no non-merge commits, check if there are any merge commits
@@ -91,9 +73,6 @@ runs:
           merge_count=$(echo "$merge_commits" | wc -l)
           
           if [[ "$merge_count" -gt 0 ]]; then
-            echo "🔍 DEBUG: No regular commits found, but found $merge_count merge commits"
-            echo "🔍 DEBUG: Merge commits:"
-            echo "$merge_commits"
             formatted_notes="No new feature commits (only merge commits)"
           else
             formatted_notes="No new commits"
@@ -111,7 +90,6 @@ runs:
               if [[ -n "$commit_hash" && -n "$commit_message" ]]; then
                 # Skip merge commits (additional filtering)
                 if [[ "$commit_message" =~ ^Merge\ pull\ request || "$commit_message" =~ ^Merge\ branch ]]; then
-                  echo "🔍 DEBUG: Skipping merge commit: $commit_message"
                   continue
                 fi
                 
@@ -149,10 +127,8 @@ runs:
           formatted_notes="No new commits"
         fi
 
-        # Debug: Echo the formatted notes
-        echo "=== FORMATTED NOTES ==="
+        # Echo the formatted notes
         echo -e "${formatted_notes}"
-        echo "=== END FORMATTED NOTES ==="
 
         # Export the formatted notes to the GitHub environment
         echo "release_notes<<EOF" >> $GITHUB_OUTPUT
