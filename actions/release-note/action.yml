@@ -57,41 +57,59 @@ runs:
           exit 1
         fi
 
-        # Get all commits in the range (excluding merge commits for cleaner output)
-        all_commits=$(git log "$previous_tag"..HEAD --no-merges --pretty=format:"%H|%s|%an|%ae" 2>/dev/null)
+        # Step 1: Find the commit with the previous tag and get its date
+        echo "=== STEP 1: Finding previous tag commit date ==="
+        echo "Looking for tag: $previous_tag"
+        tag_commit_date=$(git log -1 --format="%ct" "$previous_tag" 2>/dev/null)
 
-        # Count non-merge commits properly
-        if [[ -n "$all_commits" ]]; then
-          commit_count=$(echo "$all_commits" | wc -l)
-        else
-          commit_count=0
+        if [[ -z "$tag_commit_date" ]]; then
+          echo "Error: Could not get commit date for tag '$previous_tag'"
+          exit 1
         fi
 
-        if [[ "$commit_count" -eq 0 ]]; then
-          # If no non-merge commits, check if there are any merge commits
-          merge_commits=$(git log "$previous_tag"..HEAD --merges --pretty=format:"%H|%s|%an|%ae" 2>/dev/null)
-          merge_count=$(echo "$merge_commits" | wc -l)
-          
-          if [[ "$merge_count" -gt 0 ]]; then
-            formatted_notes="No new feature commits (only merge commits)"
-          else
-            formatted_notes="No new commits"
-          fi
-        else
-          formatted_notes=""
+        echo "✓ Previous tag '$previous_tag' commit date: $tag_commit_date"
+        echo ""
 
-          # Process each commit using a robust method
-          if [[ -n "$all_commits" ]]; then
-            # Use a temporary file to avoid subshell and newline issues
-            temp_file=$(mktemp)
-            printf "%s\n" "$all_commits" > "$temp_file"
-            
-            while IFS='|' read -r commit_hash commit_message commit_author commit_email; do
-              if [[ -n "$commit_hash" && -n "$commit_message" ]]; then
-                # Skip merge commits (additional filtering)
-                if [[ "$commit_message" =~ ^Merge\ pull\ request || "$commit_message" =~ ^Merge\ branch ]]; then
-                  continue
-                fi
+        # Step 2: Fetch commits that happened after the tag commit date
+        echo "=== STEP 2: Fetching commits after tag commit date ==="
+        echo "Command: git log master --since=\"$tag_commit_date\" --pretty=format:\"%H|%ct|%s|%an|%ae\""
+        all_commits=$(git log master --since="$tag_commit_date" --pretty=format:"%H|%ct|%s|%an|%ae" 2>/dev/null)
+
+        if [[ -n "$all_commits" ]]; then
+          commit_lines=$(echo "$all_commits" | wc -l)
+          echo "✓ Found $commit_lines commits in git log output"
+        else
+          echo "⚠ No commits found in git log output"
+        fi
+        echo ""
+
+        # Step 3: Filter commits by actual commit date and process them
+        echo "=== STEP 3: Filtering and processing commits ==="
+        commit_count=0
+        excluded_count=0
+        formatted_notes=""
+        first_commit=true
+
+        if [[ -n "$all_commits" ]]; then
+          # Use a temporary file to avoid subshell and newline issues
+          temp_file=$(mktemp)
+          printf "%s\n" "$all_commits" > "$temp_file"
+          
+          echo "Processing commits:"
+          while IFS='|' read -r commit_hash commit_date commit_message commit_author commit_email; do
+            if [[ -n "$commit_hash" && -n "$commit_message" && -n "$commit_date" ]]; then
+              # Skip the first commit (which is the previous tag commit itself)
+              if [[ "$first_commit" == "true" ]]; then
+                echo "  🚫 Excluding previous tag commit: ${commit_hash:0:7} - $commit_message"
+                first_commit=false
+                excluded_count=$((excluded_count + 1))
+                continue
+              fi
+              
+              # Only include commits that were created after the tag commit date
+              if [[ "$commit_date" -gt "$tag_commit_date" ]]; then
+                commit_count=$((commit_count + 1))
+                echo "  ✅ Including commit ${commit_count}: ${commit_hash:0:7} (date: $commit_date) - $commit_message"
                 
                 # Clean up commit message (escape backticks and quotes)
                 commit_message=$(echo "$commit_message" | sed 's/`/\\`/g' | sed 's/"/\\"/g')
@@ -115,20 +133,32 @@ runs:
                 
                 # Add to formatted notes
                 formatted_notes="${formatted_notes}\n- ${commit_hash:0:7} - ${commit_message} by ${github_author}${pr_info}"
+              else
+                echo "  ⏰ Excluding old commit: ${commit_hash:0:7} (date: $commit_date) - $commit_message"
+                excluded_count=$((excluded_count + 1))
               fi
-            done < "$temp_file"
-            
-            # Clean up temporary file
-            rm -f "$temp_file"
-          fi
+            fi
+          done < "$temp_file"
+          
+          # Clean up temporary file
+          rm -f "$temp_file"
         fi
 
-        if [[ -z "$formatted_notes" ]]; then
+        echo ""
+        echo "=== FILTERING SUMMARY ==="
+        echo "✓ Commits included: $commit_count"
+        echo "🚫 Commits excluded: $excluded_count"
+        echo ""
+
+        if [[ "$commit_count" -eq 0 ]]; then
           formatted_notes="No new commits"
         fi
 
         # Echo the formatted notes
+        echo "=== FINAL OUTPUT ==="
+        echo "Generated release notes:"
         echo -e "${formatted_notes}"
+        echo ""
 
         # Export the formatted notes to the GitHub environment
         echo "release_notes<<EOF" >> $GITHUB_OUTPUT
