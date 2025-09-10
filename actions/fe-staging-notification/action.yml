@@ -144,7 +144,7 @@ runs:
         # Use USER TOKEN for searching messages (has read access) with 30-day limit
         # Search for parent messages by repo and branch name - each repo+branch combination gets its own deployment thread
         REPO_NAME="${{ inputs.repo }}"
-        SEARCH_QUERY="in:#$CHANNEL_NAME \"$REPO_NAME\" \"Branch: $BRANCH_NAME\" after:$THIRTY_DAYS_AGO"
+        SEARCH_QUERY="in:#$CHANNEL_NAME \"$REPO_NAME\" \"$BRANCH_NAME\" after:$THIRTY_DAYS_AGO"
 
         echo "🔍 Search query: $SEARCH_QUERY"
 
