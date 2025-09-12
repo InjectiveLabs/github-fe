@@ -131,8 +131,11 @@ runs:
                   pr_info=" in ${pr_link}"
                 fi
                 
+                # Create clickable commit link
+                commit_link="[${commit_hash:0:7}](${repo_url}/commit/${commit_hash})"
+                
                 # Add to formatted notes
-                formatted_notes="${formatted_notes}\n- ${commit_hash:0:7} - ${commit_message} by ${github_author}${pr_info}"
+                formatted_notes="${formatted_notes}\n- ${commit_link} - ${commit_message} by ${github_author}${pr_info}"
               else
                 echo "  ⏰ Excluding old commit: ${commit_hash:0:7} (date: $commit_date) - $commit_message"
                 excluded_count=$((excluded_count + 1))
