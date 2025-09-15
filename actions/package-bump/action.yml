@@ -49,7 +49,7 @@ runs:
         else
           cd tmp
         fi
-        yarn install
+        pnpm install
 
     - name: Commit changes
       shell: bash
