@@ -72,25 +72,14 @@ runs:
       run: |
         echo "🔍 Extracting Jira ticket references from commits..."
 
-        # Get commit messages for branch-specific commits (after branching from dev)
+        # Get commit messages from the current branch
         BRANCH_NAME="${{ steps.branch_name.outputs.branch_name }}"
-        echo "🌿 Finding commits specific to branch: $BRANCH_NAME"
+        echo "🌿 Scanning commits on current branch: $BRANCH_NAME"
 
-        # Find the merge base between current branch and dev branch
-        echo "🔍 Finding merge base with dev branch..."
-
-        MERGE_BASE=$(git merge-base HEAD dev 2>/dev/null || echo "")
-        if [ -n "$MERGE_BASE" ]; then
-          echo "📍 Merge base with dev branch found: $MERGE_BASE"
-          COMMIT_MESSAGES=$(git log --oneline "$MERGE_BASE..HEAD" 2>/dev/null || echo "")
-          COMMIT_COUNT=$(git rev-list --count "$MERGE_BASE..HEAD" 2>/dev/null || echo "0")
-          echo "📊 Found $COMMIT_COUNT commits specific to this branch"
-        else
-          echo "❌ Could not find merge base with dev branch, falling back to last 5 commits"
-          echo "🔍 Available local branches:"
-          git branch | head -10 || echo "No local branches found"
-          COMMIT_MESSAGES=$(git log --oneline -5 2>/dev/null || echo "")
-        fi
+        # Get all commits from the current branch
+        COMMIT_MESSAGES=$(git log --oneline 2>/dev/null || echo "")
+        COMMIT_COUNT=$(git rev-list --count HEAD 2>/dev/null || echo "0")
+        echo "📊 Found $COMMIT_COUNT commits on current branch"
 
         echo "📝 Analyzing commit messages..."
         echo "📋 Commit messages being analyzed:"
