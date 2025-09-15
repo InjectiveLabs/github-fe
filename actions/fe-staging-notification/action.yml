@@ -76,20 +76,31 @@ runs:
         BRANCH_NAME="${{ steps.branch_name.outputs.branch_name }}"
         echo "🌿 Finding commits specific to branch: $BRANCH_NAME"
 
-                # Find the merge base between current branch and dev
-        MERGE_BASE=$(git merge-base HEAD origin/dev 2>/dev/null || git merge-base HEAD origin/main 2>/dev/null || echo "")
+        # Find the merge base between current branch and dev branch
+        echo "🔍 Finding merge base with dev branch..."
 
+        MERGE_BASE=$(git merge-base HEAD dev 2>/dev/null || echo "")
         if [ -n "$MERGE_BASE" ]; then
-          echo "📍 Merge base found: $MERGE_BASE"
+          echo "📍 Merge base with dev branch found: $MERGE_BASE"
           COMMIT_MESSAGES=$(git log --oneline "$MERGE_BASE..HEAD" 2>/dev/null || echo "")
           COMMIT_COUNT=$(git rev-list --count "$MERGE_BASE..HEAD" 2>/dev/null || echo "0")
           echo "📊 Found $COMMIT_COUNT commits specific to this branch"
         else
-          echo "⚠️ Could not find merge base, falling back to last 5 commits"
+          echo "❌ Could not find merge base with dev branch, falling back to last 5 commits"
+          echo "🔍 Available local branches:"
+          git branch | head -10 || echo "No local branches found"
           COMMIT_MESSAGES=$(git log --oneline -5 2>/dev/null || echo "")
         fi
 
         echo "📝 Analyzing commit messages..."
+        echo "📋 Commit messages being analyzed:"
+        echo "----------------------------------------"
+        if [ -n "$COMMIT_MESSAGES" ]; then
+          echo "$COMMIT_MESSAGES"
+        else
+          echo "No commit messages found"
+        fi
+        echo "----------------------------------------"
 
         # Extract all IL patterns using grep with regex (hardcoded for Injective Labs)
         JIRA_MATCHES=$(echo "$COMMIT_MESSAGES" | grep -ioE '(IL|il)-[0-9]{3,5}' | sort | uniq -i || true)
