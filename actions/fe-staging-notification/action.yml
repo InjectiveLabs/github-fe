@@ -76,10 +76,14 @@ runs:
         BRANCH_NAME="${{ steps.branch_name.outputs.branch_name }}"
         echo "🌿 Scanning commits on current branch: $BRANCH_NAME"
 
-        # Get all commits from the current branch
-        COMMIT_MESSAGES=$(git log --oneline 2>/dev/null || echo "")
-        COMMIT_COUNT=$(git rev-list --count HEAD 2>/dev/null || echo "0")
-        echo "📊 Found $COMMIT_COUNT commits on current branch"
+        # First, fetch the latest origin/dev to ensure we have the most recent reference
+        echo "🔄 Fetching latest origin/dev for comparison..."
+        git fetch origin dev 2>/dev/null || echo "⚠️ Could not fetch origin/dev, proceeding with local reference"
+
+        # Get only the NEW commits that are different from origin/dev
+        COMMIT_MESSAGES=$(git log origin/dev..HEAD --oneline 2>/dev/null || echo "")
+        COMMIT_COUNT=$(git rev-list --count origin/dev..HEAD 2>/dev/null || echo "0")
+        echo "📊 Found $COMMIT_COUNT NEW commits on current branch (compared to origin/dev)"
 
         echo "📝 Analyzing commit messages..."
         echo "📋 Commit messages being analyzed:"
