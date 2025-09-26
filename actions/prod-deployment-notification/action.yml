@@ -18,11 +18,15 @@ runs:
       id: notify_slack
       shell: bash
       run: |
+        # Convert GitHub markdown links to Slack format
+        # Convert [text](URL) format to <URL> format for Slack
+        SLACK_FORMATTED_NOTES=$(echo "${{ inputs.release-notes }}" | sed -E 's/\[([^]]+)\]\(([^)]+)\)/\<\2\>/g')
+
         # Determine if this is a deployment with new commits or a rebuild
         if [ "${{ inputs.release-notes }}" != "No new commits" ]; then
           # Deployment with new commits
           payload='{
-            "text": "'"<!here> 🚀 ${{ inputs.project-name }} deployed to Mainnet!\nView the deployment results on Github: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}.\nThe commits deployed are:\n${{ inputs.release-notes }}"'",
+            "text": "'"<!here> 🚀 ${{ inputs.project-name }} deployed to Mainnet!\nView the deployment results on Github: <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}>.\nThe commits deployed are:\n$SLACK_FORMATTED_NOTES"'",
             "attachments": [
               {
                 "text": "${{ inputs.project-name }} deployed to Mainnet ✅",
@@ -36,7 +40,7 @@ runs:
             "text": "'"<!here> 🚀 ${{ inputs.project-name }} Rebuilt on Mainnet! Good guys, close your eyes! 🛠️😄"'",
             "attachments": [
               {
-                "text": "View the deployment results on Github: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}.",
+                "text": "View the deployment results on Github: <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}>.",
                 "color": "#22bb33"
               }
             ]
