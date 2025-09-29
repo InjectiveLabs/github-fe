@@ -306,9 +306,10 @@ runs:
             
             # Use the original message text we extracted from the thread response
             # Decode the base64 encoded message text from the previous step
-            CURRENT_MAIN_TEXT=$(echo "${{ steps.check_slack.outputs.existing_message_text_b64 }}" | base64 -d)
+            echo "🔧 Decoding base64 message text..."
+            CURRENT_MAIN_TEXT=$(echo "${{ steps.check_slack.outputs.existing_message_text_b64 }}" | base64 -d 2>/dev/null || echo "")
             
-            if [ -n "$CURRENT_MAIN_TEXT" ]; then
+            if [ -n "$CURRENT_MAIN_TEXT" ] && [ "$CURRENT_MAIN_TEXT" != "null" ]; then
               echo "📄 Using original message text from thread response"
               
               UPDATED_MAIN_TEXT="$CURRENT_MAIN_TEXT"
@@ -375,13 +376,20 @@ runs:
               
               # Update the main message using channel ID (required for chat.update API)
               CHANNEL_ID="${{ steps.check_slack.outputs.existing_channel_id }}"
+              
+              # Escape the message text properly for JSON
+              echo "🔧 Escaping message text for JSON..."
+              ESCAPED_MAIN_TEXT=$(echo "$UPDATED_MAIN_TEXT" | sed 's/"/\\"/g' | sed 's/\\n/\\n/g' 2>/dev/null || echo "$UPDATED_MAIN_TEXT")
+              
+              echo "🔧 Attempting to update main message..."
+              echo "📝 Message length: $(echo "$ESCAPED_MAIN_TEXT" | wc -c) characters"
               UPDATE_RESPONSE=$(curl -s -X POST \
                 -H "Authorization: Bearer ${{ inputs.slack-bot-token }}" \
                 -H "Content-type: application/json" \
                 -d "{
                   \"channel\": \"$CHANNEL_ID\",
                   \"ts\": \"$MESSAGE_TS\",
-                  \"text\": \"$UPDATED_MAIN_TEXT\"
+                  \"text\": \"$ESCAPED_MAIN_TEXT\"
                 }" \
                 "https://slack.com/api/chat.update")
               
@@ -391,6 +399,9 @@ runs:
               else
                 UPDATE_ERROR=$(echo "$UPDATE_RESPONSE" | jq -r '.error // "unknown"')
                 echo "⚠️ Failed to update main message: $UPDATE_ERROR"
+                echo "📋 Update response: $UPDATE_RESPONSE"
+                # Don't fail the entire step if message update fails
+                echo "🔄 Continuing with thread message despite update failure..."
               fi
             else
               echo "⚠️ Could not retrieve original message text from thread response"
@@ -469,7 +480,13 @@ runs:
         else
           ERROR=$(echo "$RESPONSE" | jq -r '.error // "unknown"')
           echo "⚠️ Slack notification failed: $ERROR"
+          echo "📋 Full response: $RESPONSE"
+          # Don't fail the entire step - just log the error
+          echo "🔄 Continuing despite Slack notification failure..."
         fi
 
         # Output the final message timestamp (either existing or newly created)
         echo "message_ts=$FINAL_MESSAGE_TS" >> $GITHUB_OUTPUT
+
+        # Always exit successfully to prevent CI failure
+        echo "✅ Step completed successfully"
