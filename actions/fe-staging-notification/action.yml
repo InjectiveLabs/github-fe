@@ -248,6 +248,9 @@ runs:
       id: slack_notification
       shell: bash
       run: |
+        # Disable exit on error to prevent CI failure
+        set +e
+
         BRANCH_NAME="${{ steps.branch_name.outputs.branch_name }}"
 
         # Use inputs for network and description
@@ -312,10 +315,13 @@ runs:
             if [ -n "$CURRENT_MAIN_TEXT" ] && [ "$CURRENT_MAIN_TEXT" != "null" ]; then
               echo "📄 Using original message text from thread response"
               
+              # Set up error handling for text processing
+              set +e  # Disable exit on error for this section
               UPDATED_MAIN_TEXT="$CURRENT_MAIN_TEXT"
               
               # Handle Jira tickets if we have new ones
               if [ -n "$NEW_TICKETS_FOR_MAIN" ]; then
+                echo "🔧 Processing Jira tickets: $NEW_TICKETS_FOR_MAIN"
                 # Generate new ticket links
                 NEW_JIRA_LINKS=""
                 IFS=', ' read -ra NEW_TICKETS_ARRAY <<< "$NEW_TICKETS_FOR_MAIN"
@@ -329,12 +335,21 @@ runs:
                   fi
                 done
                 
+                echo "🔧 Generated Jira links: $NEW_JIRA_LINKS"
+                
                 # Check if the main message already has Jira tickets section
                 if echo "$UPDATED_MAIN_TEXT" | grep -q "Jira tickets:"; then
+                  echo "🔧 Found existing Jira tickets section, appending..."
                   # Append to existing Jira tickets line (add at the end)
                   # Use # as delimiter to avoid conflicts with | characters in Slack links
-                  UPDATED_MAIN_TEXT=$(echo "$UPDATED_MAIN_TEXT" | sed "s#\(\*Jira tickets:\* .*\)#\1, $NEW_JIRA_LINKS#")
-                  echo "📝 Appending to existing Jira tickets section"
+                  TEMP_TEXT=$(echo "$UPDATED_MAIN_TEXT" | sed "s#\(\*Jira tickets:\* .*\)#\1, $NEW_JIRA_LINKS#" 2>/dev/null || echo "$UPDATED_MAIN_TEXT")
+                  if [ "$TEMP_TEXT" != "$UPDATED_MAIN_TEXT" ]; then
+                    UPDATED_MAIN_TEXT="$TEMP_TEXT"
+                    echo "📝 Appending to existing Jira tickets section"
+                  else
+                    echo "⚠️ Failed to append to Jira tickets, adding new section instead"
+                    UPDATED_MAIN_TEXT="$UPDATED_MAIN_TEXT\n*Jira tickets:* $NEW_JIRA_LINKS"
+                  fi
                 else
                   # Add new Jira tickets section
                   UPDATED_MAIN_TEXT="$UPDATED_MAIN_TEXT\n*Jira tickets:* $NEW_JIRA_LINKS"
@@ -345,26 +360,50 @@ runs:
               # Handle staging URLs if provided
               if [ -n "${{ inputs.staging_url }}" ]; then
                 NEW_STAGING_URL="${{ inputs.staging_url }}"
+                echo "🔧 Processing staging URL: $NEW_STAGING_URL"
                 
                 # Check if the main message already has Staging URLs section
                 if echo "$UPDATED_MAIN_TEXT" | grep -q "Staging URLs:"; then
+                  echo "🔧 Found existing Staging URLs section"
                   # Check if it's in list format (with dashes) or single URL format
                   if echo "$UPDATED_MAIN_TEXT" | grep -q "Staging URLs:\n-"; then
+                    echo "🔧 Appending to existing list format..."
                     # Already in list format, append new URL
-                    UPDATED_MAIN_TEXT=$(echo "$UPDATED_MAIN_TEXT" | sed "s#\(Staging URLs:.*\)#\1\n- <$NEW_STAGING_URL|$NEW_STAGING_URL>#")
-                    echo "📝 Appending to existing Staging URLs list"
+                    TEMP_TEXT=$(echo "$UPDATED_MAIN_TEXT" | sed "s#\(Staging URLs:.*\)#\1\n- <$NEW_STAGING_URL|$NEW_STAGING_URL>#" 2>/dev/null || echo "$UPDATED_MAIN_TEXT")
+                    if [ "$TEMP_TEXT" != "$UPDATED_MAIN_TEXT" ]; then
+                      UPDATED_MAIN_TEXT="$TEMP_TEXT"
+                      echo "📝 Appending to existing Staging URLs list"
+                    else
+                      echo "⚠️ Failed to append to list, adding new section instead"
+                      UPDATED_MAIN_TEXT="$UPDATED_MAIN_TEXT\n*Staging URLs:* <$NEW_STAGING_URL|$NEW_STAGING_URL>"
+                    fi
                   else
+                    echo "🔧 Converting single URL to list format..."
                     # Single URL format, convert to list format
                     # Extract existing URL and convert to list format
-                    EXISTING_URL=$(echo "$UPDATED_MAIN_TEXT" | grep -o "Staging URLs: <[^>]*|.*>" | sed 's/Staging URLs: <\([^|]*\)|.*>/\1/')
+                    EXISTING_URL=$(echo "$UPDATED_MAIN_TEXT" | grep -o "Staging URLs: <[^>]*|.*>" | sed 's/Staging URLs: <\([^|]*\)|.*>/\1/' 2>/dev/null || echo "")
                     if [ -n "$EXISTING_URL" ]; then
+                      echo "🔧 Found existing URL: $EXISTING_URL"
                       # Replace single URL with list format
-                      UPDATED_MAIN_TEXT=$(echo "$UPDATED_MAIN_TEXT" | sed "s#Staging URLs: <[^>]*|.*>#Staging URLs:\n- <$EXISTING_URL|$EXISTING_URL>\n- <$NEW_STAGING_URL|$NEW_STAGING_URL>#")
-                      echo "📝 Converting single Staging URL to list format and adding new URL"
+                      TEMP_TEXT=$(echo "$UPDATED_MAIN_TEXT" | sed "s#Staging URLs: <[^>]*|.*>#Staging URLs:\n- <$EXISTING_URL|$EXISTING_URL>\n- <$NEW_STAGING_URL|$NEW_STAGING_URL>#" 2>/dev/null || echo "$UPDATED_MAIN_TEXT")
+                      if [ "$TEMP_TEXT" != "$UPDATED_MAIN_TEXT" ]; then
+                        UPDATED_MAIN_TEXT="$TEMP_TEXT"
+                        echo "📝 Converting single Staging URL to list format and adding new URL"
+                      else
+                        echo "⚠️ Failed to convert to list, adding new section instead"
+                        UPDATED_MAIN_TEXT="$UPDATED_MAIN_TEXT\n*Staging URLs:* <$NEW_STAGING_URL|$NEW_STAGING_URL>"
+                      fi
                     else
+                      echo "🔧 Fallback: appending to existing section..."
                       # Fallback: just append as list
-                      UPDATED_MAIN_TEXT=$(echo "$UPDATED_MAIN_TEXT" | sed "s#\(Staging URLs:.*\)#\1\n- <$NEW_STAGING_URL|$NEW_STAGING_URL>#")
-                      echo "📝 Appending to Staging URLs section"
+                      TEMP_TEXT=$(echo "$UPDATED_MAIN_TEXT" | sed "s#\(Staging URLs:.*\)#\1\n- <$NEW_STAGING_URL|$NEW_STAGING_URL>#" 2>/dev/null || echo "$UPDATED_MAIN_TEXT")
+                      if [ "$TEMP_TEXT" != "$UPDATED_MAIN_TEXT" ]; then
+                        UPDATED_MAIN_TEXT="$TEMP_TEXT"
+                        echo "📝 Appending to Staging URLs section"
+                      else
+                        echo "⚠️ Failed to append, adding new section instead"
+                        UPDATED_MAIN_TEXT="$UPDATED_MAIN_TEXT\n*Staging URLs:* <$NEW_STAGING_URL|$NEW_STAGING_URL>"
+                      fi
                     fi
                   fi
                 else
@@ -373,6 +412,9 @@ runs:
                   echo "📝 Adding new Staging URLs section"
                 fi
               fi
+              
+              # Re-enable exit on error
+              set -e
               
               # Update the main message using channel ID (required for chat.update API)
               CHANNEL_ID="${{ steps.check_slack.outputs.existing_channel_id }}"
@@ -407,7 +449,7 @@ runs:
               echo "⚠️ Could not retrieve original message text from thread response"
             fi
           else
-            echo "📋 No new tickets to add to main message"
+            echo "📋 No new tickets to add to main message, skipping update"
           fi
           
           # Create threaded reply with deployment details (no Jira tickets since they're in main message)
@@ -490,3 +532,4 @@ runs:
 
         # Always exit successfully to prevent CI failure
         echo "✅ Step completed successfully"
+        exit 0
