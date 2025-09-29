@@ -20,6 +20,10 @@ inputs:
   staging_url:
     description: "URL of the staging deployment"
     required: true
+  slack-channel:
+    description: "Slack channel name for notifications"
+    required: false
+    default: "frontend-staging"
 
 outputs:
   branch_name:
@@ -64,7 +68,7 @@ runs:
         echo "🎯 Using specified branch: $BRANCH_NAME"
 
         echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
-        echo "channel_name=frontend-staging" >> $GITHUB_OUTPUT
+        echo "channel_name=${{ inputs.slack-channel }}" >> $GITHUB_OUTPUT
 
     - name: Extract Jira tickets from commits
       id: jira_tickets
@@ -138,7 +142,7 @@ runs:
       run: |
         # Hybrid approach: Use user token to READ messages, bot token to SEND messages
         BRANCH_NAME="${{ steps.branch_name.outputs.branch_name }}"
-        CHANNEL_NAME="frontend-staging"  # Hardcoded for Injective Labs
+        CHANNEL_NAME="${{ inputs.slack-channel }}"
 
         echo "🔍 Searching for existing messages for branch: $BRANCH_NAME"
 
@@ -296,9 +300,9 @@ runs:
             done
           fi
           
-          # Update main message if we have new tickets
-          if [ -n "$NEW_TICKETS_FOR_MAIN" ]; then
-            echo "📝 Updating main message to add new tickets: $NEW_TICKETS_FOR_MAIN"
+          # Update main message if we have new tickets or new staging URL
+          if [ -n "$NEW_TICKETS_FOR_MAIN" ] || [ -n "${{ inputs.staging_url }}" ]; then
+            echo "📝 Updating main message to add new tickets: $NEW_TICKETS_FOR_MAIN and staging URL: ${{ inputs.staging_url }}"
             
             # Use the original message text we extracted from the thread response
             # Decode the base64 encoded message text from the previous step
@@ -307,29 +311,66 @@ runs:
             if [ -n "$CURRENT_MAIN_TEXT" ]; then
               echo "📄 Using original message text from thread response"
               
-              # Generate new ticket links
-              NEW_JIRA_LINKS=""
-              IFS=', ' read -ra NEW_TICKETS_ARRAY <<< "$NEW_TICKETS_FOR_MAIN"
-              for ticket in "${NEW_TICKETS_ARRAY[@]}"; do
-                ticket=$(echo "$ticket" | xargs)
-                JIRA_URL="https://injective-labs.atlassian.net/browse/$ticket"
-                if [ -z "$NEW_JIRA_LINKS" ]; then
-                  NEW_JIRA_LINKS="<$JIRA_URL|$ticket>"
-                else
-                  NEW_JIRA_LINKS="$NEW_JIRA_LINKS, <$JIRA_URL|$ticket>"
-                fi
-              done
+              UPDATED_MAIN_TEXT="$CURRENT_MAIN_TEXT"
               
-              # Check if the main message already has Jira tickets section
-              if echo "$CURRENT_MAIN_TEXT" | grep -q "Jira tickets:"; then
-                # Append to existing Jira tickets line (add at the end)
-                # Use # as delimiter to avoid conflicts with | characters in Slack links
-                UPDATED_MAIN_TEXT=$(echo "$CURRENT_MAIN_TEXT" | sed "s#\(\*Jira tickets:\* .*\)#\1, $NEW_JIRA_LINKS#")
-                echo "📝 Appending to existing Jira tickets section"
-              else
-                # Add new Jira tickets section
-                UPDATED_MAIN_TEXT="$CURRENT_MAIN_TEXT\n*Jira tickets:* $NEW_JIRA_LINKS"
-                echo "📝 Adding new Jira tickets section"
+              # Handle Jira tickets if we have new ones
+              if [ -n "$NEW_TICKETS_FOR_MAIN" ]; then
+                # Generate new ticket links
+                NEW_JIRA_LINKS=""
+                IFS=', ' read -ra NEW_TICKETS_ARRAY <<< "$NEW_TICKETS_FOR_MAIN"
+                for ticket in "${NEW_TICKETS_ARRAY[@]}"; do
+                  ticket=$(echo "$ticket" | xargs)
+                  JIRA_URL="https://injective-labs.atlassian.net/browse/$ticket"
+                  if [ -z "$NEW_JIRA_LINKS" ]; then
+                    NEW_JIRA_LINKS="<$JIRA_URL|$ticket>"
+                  else
+                    NEW_JIRA_LINKS="$NEW_JIRA_LINKS, <$JIRA_URL|$ticket>"
+                  fi
+                done
+                
+                # Check if the main message already has Jira tickets section
+                if echo "$UPDATED_MAIN_TEXT" | grep -q "Jira tickets:"; then
+                  # Append to existing Jira tickets line (add at the end)
+                  # Use # as delimiter to avoid conflicts with | characters in Slack links
+                  UPDATED_MAIN_TEXT=$(echo "$UPDATED_MAIN_TEXT" | sed "s#\(\*Jira tickets:\* .*\)#\1, $NEW_JIRA_LINKS#")
+                  echo "📝 Appending to existing Jira tickets section"
+                else
+                  # Add new Jira tickets section
+                  UPDATED_MAIN_TEXT="$UPDATED_MAIN_TEXT\n*Jira tickets:* $NEW_JIRA_LINKS"
+                  echo "📝 Adding new Jira tickets section"
+                fi
+              fi
+              
+              # Handle staging URLs if provided
+              if [ -n "${{ inputs.staging_url }}" ]; then
+                NEW_STAGING_URL="${{ inputs.staging_url }}"
+                
+                # Check if the main message already has Staging URLs section
+                if echo "$UPDATED_MAIN_TEXT" | grep -q "Staging URLs:"; then
+                  # Check if it's in list format (with dashes) or single URL format
+                  if echo "$UPDATED_MAIN_TEXT" | grep -q "Staging URLs:\n-"; then
+                    # Already in list format, append new URL
+                    UPDATED_MAIN_TEXT=$(echo "$UPDATED_MAIN_TEXT" | sed "s#\(Staging URLs:.*\)#\1\n- <$NEW_STAGING_URL|$NEW_STAGING_URL>#")
+                    echo "📝 Appending to existing Staging URLs list"
+                  else
+                    # Single URL format, convert to list format
+                    # Extract existing URL and convert to list format
+                    EXISTING_URL=$(echo "$UPDATED_MAIN_TEXT" | grep -o "Staging URLs: <[^>]*|.*>" | sed 's/Staging URLs: <\([^|]*\)|.*>/\1/')
+                    if [ -n "$EXISTING_URL" ]; then
+                      # Replace single URL with list format
+                      UPDATED_MAIN_TEXT=$(echo "$UPDATED_MAIN_TEXT" | sed "s#Staging URLs: <[^>]*|.*>#Staging URLs:\n- <$EXISTING_URL|$EXISTING_URL>\n- <$NEW_STAGING_URL|$NEW_STAGING_URL>#")
+                      echo "📝 Converting single Staging URL to list format and adding new URL"
+                    else
+                      # Fallback: just append as list
+                      UPDATED_MAIN_TEXT=$(echo "$UPDATED_MAIN_TEXT" | sed "s#\(Staging URLs:.*\)#\1\n- <$NEW_STAGING_URL|$NEW_STAGING_URL>#")
+                      echo "📝 Appending to Staging URLs section"
+                    fi
+                  fi
+                else
+                  # Add new Staging URLs section
+                  UPDATED_MAIN_TEXT="$UPDATED_MAIN_TEXT\n*Staging URLs:* <$NEW_STAGING_URL|$NEW_STAGING_URL>"
+                  echo "📝 Adding new Staging URLs section"
+                fi
               fi
               
               # Update the main message using channel ID (required for chat.update API)
