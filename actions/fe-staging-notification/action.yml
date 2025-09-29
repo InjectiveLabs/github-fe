@@ -375,7 +375,7 @@ runs:
                       echo "📝 Appending to existing Staging URLs list"
                     else
                       echo "⚠️ Failed to append to list, adding new section instead"
-                      UPDATED_MAIN_TEXT="$UPDATED_MAIN_TEXT\n*Staging URLs:* <$NEW_STAGING_URL|$NEW_STAGING_URL>"
+                      UPDATED_MAIN_TEXT="$UPDATED_MAIN_TEXT\n*Staging URLs:*\n- <$NEW_STAGING_URL|$NEW_STAGING_URL>"
                     fi
                   else
                     echo "🔧 Converting single URL to list format..."
@@ -384,31 +384,31 @@ runs:
                     EXISTING_URL=$(echo "$UPDATED_MAIN_TEXT" | grep -o "Staging URLs: <[^>]*|.*>" | sed 's/Staging URLs: <\([^|]*\)|.*>/\1/' 2>/dev/null || echo "")
                     if [ -n "$EXISTING_URL" ]; then
                       echo "🔧 Found existing URL: $EXISTING_URL"
-                      # Replace single URL with list format
+                      # Replace single URL with list format - put "Staging URLs:" on its own line
                       TEMP_TEXT=$(echo "$UPDATED_MAIN_TEXT" | sed "s#Staging URLs: <[^>]*|.*>#Staging URLs:\n- <$EXISTING_URL|$EXISTING_URL>\n- <$NEW_STAGING_URL|$NEW_STAGING_URL>#" 2>/dev/null || echo "$UPDATED_MAIN_TEXT")
                       if [ "$TEMP_TEXT" != "$UPDATED_MAIN_TEXT" ]; then
                         UPDATED_MAIN_TEXT="$TEMP_TEXT"
                         echo "📝 Converting single Staging URL to list format and adding new URL"
                       else
                         echo "⚠️ Failed to convert to list, adding new section instead"
-                        UPDATED_MAIN_TEXT="$UPDATED_MAIN_TEXT\n*Staging URLs:* <$NEW_STAGING_URL|$NEW_STAGING_URL>"
+                        UPDATED_MAIN_TEXT="$UPDATED_MAIN_TEXT\n*Staging URLs:*\n- <$NEW_STAGING_URL|$NEW_STAGING_URL>"
                       fi
                     else
                       echo "🔧 Fallback: appending to existing section..."
-                      # Fallback: just append as list
+                      # Fallback: just append as list - put "Staging URLs:" on its own line
                       TEMP_TEXT=$(echo "$UPDATED_MAIN_TEXT" | sed "s#\(Staging URLs:.*\)#\1\n- <$NEW_STAGING_URL|$NEW_STAGING_URL>#" 2>/dev/null || echo "$UPDATED_MAIN_TEXT")
                       if [ "$TEMP_TEXT" != "$UPDATED_MAIN_TEXT" ]; then
                         UPDATED_MAIN_TEXT="$TEMP_TEXT"
                         echo "📝 Appending to Staging URLs section"
                       else
                         echo "⚠️ Failed to append, adding new section instead"
-                        UPDATED_MAIN_TEXT="$UPDATED_MAIN_TEXT\n*Staging URLs:* <$NEW_STAGING_URL|$NEW_STAGING_URL>"
+                        UPDATED_MAIN_TEXT="$UPDATED_MAIN_TEXT\n*Staging URLs:*\n- <$NEW_STAGING_URL|$NEW_STAGING_URL>"
                       fi
                     fi
                   fi
                 else
                   # Add new Staging URLs section
-                  UPDATED_MAIN_TEXT="$UPDATED_MAIN_TEXT\n*Staging URLs:* <$NEW_STAGING_URL|$NEW_STAGING_URL>"
+                  UPDATED_MAIN_TEXT="$UPDATED_MAIN_TEXT\n*Staging URLs:*\n- <$NEW_STAGING_URL|$NEW_STAGING_URL>"
                   echo "📝 Adding new Staging URLs section"
                 fi
               fi
@@ -487,7 +487,7 @@ runs:
           
           # Add staging URL if provided
           if [ -n "${{ inputs.staging_url }}" ]; then
-            MESSAGE_TEXT="$MESSAGE_TEXT\n*Staging URL:* <${{ inputs.staging_url }}|${{ inputs.staging_url }}>"
+            MESSAGE_TEXT="$MESSAGE_TEXT\n*Staging URLs:*\n- <${{ inputs.staging_url }}|${{ inputs.staging_url }}>"
           fi
           
           MESSAGE_TEXT="$MESSAGE_TEXT\n*Author:* $AUTHOR"

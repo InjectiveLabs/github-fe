@@ -19,8 +19,9 @@ runs:
       shell: bash
       run: |
         # Convert GitHub markdown links to Slack format
-        # Convert [text](URL) format to <URL> format for Slack
-        SLACK_FORMATTED_NOTES=$(echo "${{ inputs.release-notes }}" | sed -E 's/\[([^]]+)\]\(([^)]+)\)/\<\2\>/g')
+        # Convert [short-hash](URL) - commit message to <URL|short-hash: commit message> format for Slack
+        SLACK_FORMATTED_NOTES=$(echo "${{ inputs.release-notes }}" | \
+          sed -E 's/\[([^]]+)\]\(([^)]+)\) - (.+)/<\2|\1: \3>/g')
 
         # Determine if this is a deployment with new commits or a rebuild
         if [ "${{ inputs.release-notes }}" != "No new commits" ]; then
