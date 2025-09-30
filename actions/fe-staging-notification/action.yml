@@ -395,10 +395,11 @@ runs:
                       echo "🔧 Found existing URL: $EXISTING_URL"
                       # Replace single URL with list format - put "Staging URLs:" on its own line
                       if echo "$UPDATED_MAIN_TEXT" | grep -q "Staging URLs: <"; then
-                        # Replace Slack link format
+                        # Replace Slack link format - match only the first occurrence on the line
                         TEMP_TEXT=$(echo "$UPDATED_MAIN_TEXT" | sed "s#Staging URLs: <[^>]*|.*>#Staging URLs:\n- <$EXISTING_URL|$EXISTING_URL>\n- <$NEW_STAGING_URL|$NEW_STAGING_URL>#" 2>/dev/null || echo "$UPDATED_MAIN_TEXT")
                       else
-                        # Replace plain URL format
+                        # Replace plain URL format - be more specific to match only the first URL on the line
+                        # Use a more precise pattern that stops at the first space or newline after the URL
                         TEMP_TEXT=$(echo "$UPDATED_MAIN_TEXT" | sed "s#Staging URLs: https://[^[:space:]]*#Staging URLs:\n- <$EXISTING_URL|$EXISTING_URL>\n- <$NEW_STAGING_URL|$NEW_STAGING_URL>#" 2>/dev/null || echo "$UPDATED_MAIN_TEXT")
                       fi
                       
@@ -412,7 +413,23 @@ runs:
                     else
                       echo "🔧 Fallback: appending to existing section..."
                       # Fallback: just append as list - put "Staging URLs:" on its own line
-                      TEMP_TEXT=$(echo "$UPDATED_MAIN_TEXT" | sed "s#\(Staging URLs:.*\)#\1\n- <$NEW_STAGING_URL|$NEW_STAGING_URL>#" 2>/dev/null || echo "$UPDATED_MAIN_TEXT")
+                      # Use a more specific pattern to avoid matching already formatted lists
+                      if echo "$UPDATED_MAIN_TEXT" | grep -q "Staging URLs: https://"; then
+                        # This is a single URL format, convert it properly
+                        # Extract the existing URL first
+                        EXISTING_URL_SIMPLE=$(echo "$UPDATED_MAIN_TEXT" | grep -o "Staging URLs: https://[^[:space:]]*" | sed 's/Staging URLs: //')
+                        if [ -n "$EXISTING_URL_SIMPLE" ]; then
+                          # Replace the single URL with proper list format
+                          TEMP_TEXT=$(echo "$UPDATED_MAIN_TEXT" | sed "s#Staging URLs: $EXISTING_URL_SIMPLE#Staging URLs:\n- <$EXISTING_URL_SIMPLE|$EXISTING_URL_SIMPLE>\n- <$NEW_STAGING_URL|$NEW_STAGING_URL>#")
+                        else
+                          # Fallback: just append
+                          TEMP_TEXT=$(echo "$UPDATED_MAIN_TEXT" | sed "s#\(Staging URLs:.*\)#\1\n- <$NEW_STAGING_URL|$NEW_STAGING_URL>#" 2>/dev/null || echo "$UPDATED_MAIN_TEXT")
+                        fi
+                      else
+                        # Already in list format, just append
+                        TEMP_TEXT=$(echo "$UPDATED_MAIN_TEXT" | sed "s#\(Staging URLs:.*\)#\1\n- <$NEW_STAGING_URL|$NEW_STAGING_URL>#" 2>/dev/null || echo "$UPDATED_MAIN_TEXT")
+                      fi
+                      
                       if [ "$TEMP_TEXT" != "$UPDATED_MAIN_TEXT" ]; then
                         UPDATED_MAIN_TEXT="$TEMP_TEXT"
                         echo "📝 Appending to Staging URLs section"
