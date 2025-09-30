@@ -341,8 +341,8 @@ runs:
                 if echo "$UPDATED_MAIN_TEXT" | grep -q "Jira tickets:"; then
                   echo "🔧 Found existing Jira tickets section, appending..."
                   # Append to existing Jira tickets line (add at the end)
-                  # Use # as delimiter to avoid conflicts with | characters in Slack links
-                  TEMP_TEXT=$(echo "$UPDATED_MAIN_TEXT" | sed "s#\(\*Jira tickets:\* .*\)#\1, $NEW_JIRA_LINKS#" 2>/dev/null || echo "$UPDATED_MAIN_TEXT")
+                  # Use a more specific pattern to match the Jira tickets line
+                  TEMP_TEXT=$(echo "$UPDATED_MAIN_TEXT" | sed "s#\(\*Jira tickets:\* [^\\n]*\)#\1, $NEW_JIRA_LINKS#" 2>/dev/null || echo "$UPDATED_MAIN_TEXT")
                   if [ "$TEMP_TEXT" != "$UPDATED_MAIN_TEXT" ]; then
                     UPDATED_MAIN_TEXT="$TEMP_TEXT"
                     echo "📝 Appending to existing Jira tickets section"
@@ -381,11 +381,27 @@ runs:
                     echo "🔧 Converting single URL to list format..."
                     # Single URL format, convert to list format
                     # Extract existing URL and convert to list format
-                    EXISTING_URL=$(echo "$UPDATED_MAIN_TEXT" | grep -o "Staging URLs: <[^>]*|.*>" | sed 's/Staging URLs: <\([^|]*\)|.*>/\1/' 2>/dev/null || echo "")
+                    # Handle both Slack link format and plain URL format
+                    EXISTING_URL=""
+                    if echo "$UPDATED_MAIN_TEXT" | grep -q "Staging URLs: <"; then
+                      # Slack link format
+                      EXISTING_URL=$(echo "$UPDATED_MAIN_TEXT" | grep -o "Staging URLs: <[^>]*|.*>" | sed 's/Staging URLs: <\([^|]*\)|.*>/\1/' 2>/dev/null || echo "")
+                    else
+                      # Plain URL format
+                      EXISTING_URL=$(echo "$UPDATED_MAIN_TEXT" | grep -o "Staging URLs: https://[^[:space:]]*" | sed 's/Staging URLs: //' 2>/dev/null || echo "")
+                    fi
+                    
                     if [ -n "$EXISTING_URL" ]; then
                       echo "🔧 Found existing URL: $EXISTING_URL"
                       # Replace single URL with list format - put "Staging URLs:" on its own line
-                      TEMP_TEXT=$(echo "$UPDATED_MAIN_TEXT" | sed "s#Staging URLs: <[^>]*|.*>#Staging URLs:\n- <$EXISTING_URL|$EXISTING_URL>\n- <$NEW_STAGING_URL|$NEW_STAGING_URL>#" 2>/dev/null || echo "$UPDATED_MAIN_TEXT")
+                      if echo "$UPDATED_MAIN_TEXT" | grep -q "Staging URLs: <"; then
+                        # Replace Slack link format
+                        TEMP_TEXT=$(echo "$UPDATED_MAIN_TEXT" | sed "s#Staging URLs: <[^>]*|.*>#Staging URLs:\n- <$EXISTING_URL|$EXISTING_URL>\n- <$NEW_STAGING_URL|$NEW_STAGING_URL>#" 2>/dev/null || echo "$UPDATED_MAIN_TEXT")
+                      else
+                        # Replace plain URL format
+                        TEMP_TEXT=$(echo "$UPDATED_MAIN_TEXT" | sed "s#Staging URLs: https://[^[:space:]]*#Staging URLs:\n- <$EXISTING_URL|$EXISTING_URL>\n- <$NEW_STAGING_URL|$NEW_STAGING_URL>#" 2>/dev/null || echo "$UPDATED_MAIN_TEXT")
+                      fi
+                      
                       if [ "$TEMP_TEXT" != "$UPDATED_MAIN_TEXT" ]; then
                         UPDATED_MAIN_TEXT="$TEMP_TEXT"
                         echo "📝 Converting single Staging URL to list format and adding new URL"
