@@ -73,30 +73,50 @@ runs:
         # Step 2: Fetch commits that happened after the tag commit date
         echo "=== STEP 2: Fetching commits after tag commit date ==="
         echo "Command: git log master --since=\"$tag_commit_date\" --pretty=format:\"%H|%ct|%s|%an|%ae\""
+
+        # Initialize variables
+        commit_count=0
+        excluded_count=0
+        formatted_notes=""
+
+        # Fetch commits - handle empty result gracefully
+        set +e  # Disable exit on error for git log
         all_commits=$(git log master --since="$tag_commit_date" --pretty=format:"%H|%ct|%s|%an|%ae" 2>/dev/null)
+        git_log_exit_code=$?
+        set -e  # Re-enable exit on error
+
+        # Check if git log found any commits
+        if [[ "$git_log_exit_code" -ne 0 ]]; then
+          echo "⚠ Warning: git log command exited with code $git_log_exit_code"
+        fi
 
         if [[ -n "$all_commits" ]]; then
-          commit_lines=$(echo "$all_commits" | wc -l)
+          # Count lines safely - handle empty input
+          commit_lines=$(printf "%s\n" "$all_commits" | wc -l | tr -d ' ')
           echo "✓ Found $commit_lines commits in git log output"
         else
           echo "⚠ No commits found in git log output"
+          commit_lines=0
         fi
         echo ""
 
         # Step 3: Filter commits by actual commit date and process them
         echo "=== STEP 3: Filtering and processing commits ==="
-        commit_count=0
-        excluded_count=0
-        formatted_notes=""
         first_commit=true
 
         if [[ -n "$all_commits" ]]; then
           # Use a temporary file to avoid subshell and newline issues
           temp_file=$(mktemp)
+          trap "rm -f '$temp_file'" EXIT  # Ensure temp file is cleaned up
           printf "%s\n" "$all_commits" > "$temp_file"
           
           echo "Processing commits:"
-          while IFS='|' read -r commit_hash commit_date commit_message commit_author commit_email; do
+          while IFS='|' read -r commit_hash commit_date commit_message commit_author commit_email || [[ -n "$commit_hash" ]]; do
+            # Skip empty lines
+            if [[ -z "$commit_hash" && -z "$commit_message" ]]; then
+              continue
+            fi
+            
             if [[ -n "$commit_hash" && -n "$commit_message" && -n "$commit_date" ]]; then
               # Skip the first commit (which is the previous tag commit itself)
               if [[ "$first_commit" == "true" ]]; then
@@ -145,6 +165,9 @@ runs:
           
           # Clean up temporary file
           rm -f "$temp_file"
+          trap - EXIT  # Remove trap
+        else
+          echo "No commits to process"
         fi
 
         echo ""
@@ -153,6 +176,7 @@ runs:
         echo "🚫 Commits excluded: $excluded_count"
         echo ""
 
+        # Set formatted_notes to "No new commits" if no commits were found
         if [[ "$commit_count" -eq 0 ]]; then
           formatted_notes="No new commits"
         fi
@@ -164,9 +188,10 @@ runs:
         echo ""
 
         # Export the formatted notes to the GitHub environment
-        echo "release_notes<<EOF" >> $GITHUB_OUTPUT
-        echo -e "${formatted_notes}" >> $GITHUB_OUTPUT
-        echo "EOF" >> $GITHUB_OUTPUT
+        # Use printf to ensure consistent output format
+        printf "release_notes<<EOF\n" >> $GITHUB_OUTPUT
+        printf "%s\n" "$formatted_notes" >> $GITHUB_OUTPUT
+        printf "EOF\n" >> $GITHUB_OUTPUT
 
     - name: Compute Bugsnag App Version
       id: compute_bugsnag_app_version
