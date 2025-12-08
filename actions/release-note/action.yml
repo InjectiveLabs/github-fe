@@ -8,6 +8,10 @@ inputs:
   repo_url:
     description: "The URL of the repository"
     required: true
+  branch:
+    description: "The branch to generate release notes from"
+    required: false
+    default: "master"
 
 outputs:
   new_version:
@@ -50,6 +54,7 @@ runs:
       run: |
         previous_tag="${{ inputs.previous_tag }}"
         repo_url="${{ inputs.repo_url }}"
+        branch="${{ inputs.branch }}"
 
         # Validate that the previous tag exists
         if ! git rev-parse --verify "$previous_tag" >/dev/null 2>&1; then
@@ -72,7 +77,7 @@ runs:
 
         # Step 2: Fetch commits that happened after the tag commit date
         echo "=== STEP 2: Fetching commits after tag commit date ==="
-        echo "Command: git log master --since=\"$tag_commit_date\" --pretty=format:\"%H|%ct|%s|%an|%ae\""
+        echo "Command: git log $branch --since=\"$tag_commit_date\" --pretty=format:\"%H|%ct|%s|%an|%ae\""
 
         # Initialize variables
         commit_count=0
@@ -81,7 +86,7 @@ runs:
 
         # Fetch commits - handle empty result gracefully
         set +e  # Disable exit on error for git log
-        all_commits=$(git log master --since="$tag_commit_date" --pretty=format:"%H|%ct|%s|%an|%ae" 2>/dev/null)
+        all_commits=$(git log "$branch" --since="$tag_commit_date" --pretty=format:"%H|%ct|%s|%an|%ae" 2>/dev/null)
         git_log_exit_code=$?
         set -e  # Re-enable exit on error
 
@@ -134,11 +139,23 @@ runs:
                 # Clean up commit message (escape backticks and quotes)
                 commit_message=$(echo "$commit_message" | sed 's/`/\\`/g' | sed 's/"/\\"/g')
                 
-                # Format author
-                if [[ "$commit_author" =~ " " ]]; then
-                  github_author="${commit_author} (${commit_email})"
-                else
+                # Format author - try to use GitHub username format
+                # If author name has no spaces, assume it's a GitHub username
+                # Otherwise, try to extract username from email (user@users.noreply.github.com)
+                if [[ "$commit_email" =~ ^([^+]+)\+?.*@users\.noreply\.github\.com$ ]]; then
+                  # GitHub noreply email format: username@users.noreply.github.com or ID+username@users.noreply.github.com
+                  github_username="${BASH_REMATCH[1]}"
+                  # Handle the ID+username format
+                  if [[ "$github_username" =~ ^[0-9]+\+(.+)$ ]]; then
+                    github_username="${BASH_REMATCH[1]}"
+                  fi
+                  github_author="@${github_username}"
+                elif [[ ! "$commit_author" =~ " " ]]; then
+                  # No spaces in name, likely a GitHub username
                   github_author="@${commit_author}"
+                else
+                  # Full name with spaces, show with email
+                  github_author="${commit_author} (${commit_email})"
                 fi
                 
                 # Check if this commit message contains a PR number

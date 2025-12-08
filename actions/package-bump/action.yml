@@ -13,15 +13,22 @@ inputs:
     required: true
   repository_branch:
     description: "repository branch"
-    required: true
+    required: false
+    default: "dev"
+  propagation_delay:
+    description: "Seconds to wait for npm package propagation before installing"
+    required: false
+    default: "30"
 
 runs:
   using: "composite"
   steps:
-    - name: Sleep for 30s
-      uses: juliangruber/sleep-action@v2.0.0
-      with:
-        time: 30s
+    - name: Wait for npm propagation
+      shell: bash
+      run: |
+        DELAY="${{ inputs.propagation_delay }}"
+        echo "Waiting ${DELAY}s for npm package propagation..."
+        sleep "$DELAY"
 
     - name: Checkout repository
       uses: actions/checkout@v4
@@ -30,6 +37,7 @@ runs:
         path: tmp
         token: ${{ inputs.gh_token }}
         repository: ${{ inputs.repository_url }}
+        ref: ${{ inputs.repository_branch }}
 
     - name: Set up Node.js
       uses: actions/setup-node@v4
@@ -39,7 +47,7 @@ runs:
     - name: Setup pnpm
       uses: pnpm/action-setup@v4
       with:
-        version: latest
+        version: "10"
 
     - name: Install dependencies
       shell: bash

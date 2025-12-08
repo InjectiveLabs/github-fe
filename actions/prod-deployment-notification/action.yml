@@ -18,14 +18,44 @@ runs:
       id: notify_slack
       shell: bash
       run: |
+        # Use github.repository context to build repo URL automatically
+        REPO_URL="https://github.com/${{ github.repository }}"
+        
         # Convert GitHub markdown links to Slack format
-        # First remove trailing PR links like [#2239](https://github.com/...)
-        # Then convert [short-hash](URL) - commit message to short-hash: commit message format
-        # Finally add Slack link format to just the short hash
-        SLACK_FORMATTED_NOTES=$(echo "${{ inputs.release-notes }}" | \
-          sed -E 's/ in \[#[0-9]+\]\([^)]+\)$//g' | \
-          sed -E 's/\[([^]]+)\]\(([^)]+)\) - (.+)/\1: \3/g' | \
-          sed -E 's/([a-f0-9]{7,}):/<https:\/\/github.com\/InjectiveLabs\/injective-helix\/commit\/\1|\1>:/g')
+        # The release notes come in the format:
+        # - [short-hash](commit-url) - commit message by @author in [#PR](pr-url)
+        # We need to convert to Slack format:
+        # - <commit-url|short-hash>: commit message by @author
+        
+        # Process each line to convert markdown to Slack format
+        SLACK_FORMATTED_NOTES=$(echo "${{ inputs.release-notes }}" | while IFS= read -r line; do
+          if [[ -z "$line" ]]; then
+            echo ""
+            continue
+          fi
+          
+          # Remove trailing PR links like " in [#2239](https://github.com/...)"
+          line=$(echo "$line" | sed -E 's/ in \[#[0-9]+\]\([^)]+\)$//')
+          
+          # Convert markdown link [hash](url) to Slack format
+          # Pattern: - [hash](url) - message
+          if echo "$line" | grep -qE '^\- \[[a-f0-9]+\]\(https://'; then
+            # Extract components using sed - use the URL from the markdown link
+            hash=$(echo "$line" | sed -E 's/^\- \[([a-f0-9]+)\]\(.*$/\1/')
+            url=$(echo "$line" | sed -E 's/^\- \[[a-f0-9]+\]\(([^)]+)\).*$/\1/')
+            rest=$(echo "$line" | sed -E 's/^\- \[[a-f0-9]+\]\([^)]+\) - //')
+            echo "- <${url}|${hash}>: ${rest}"
+          elif echo "$line" | grep -qE '^\- [a-f0-9]{7}'; then
+            # Plain hash format without link: - hash: message
+            # Add link using github.repository
+            hash=$(echo "$line" | sed -E 's/^\- ([a-f0-9]+)[: ].*/\1/')
+            rest=$(echo "$line" | sed -E 's/^\- [a-f0-9]+[: ]+(.*)/\1/')
+            echo "- <${REPO_URL}/commit/${hash}|${hash}>: ${rest}"
+          else
+            # Line doesn't match expected pattern, output as-is
+            echo "$line"
+          fi
+        done)
 
         # Determine if this is a deployment with new commits or a rebuild
         if [ "${{ inputs.release-notes }}" != "No new commits" ]; then

@@ -1,0 +1,34 @@
+{
+  "name": "fe-staging-notification",
+  "version": "1.0.0",
+  "description": "Extract Jira tickets and send Slack notifications for deployments",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "ncc build src/index.js -o dist",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "prepare": "cd ../.. && husky actions/fe-staging-notification/.husky",
+    "lint-staged": "lint-staged"
+  },
+  "lint-staged": {
+    "src/**/*.js": [
+      "vitest related --run"
+    ]
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@actions/core": "^1.11.1",
+    "@actions/exec": "^1.1.1"
+  },
+  "devDependencies": {
+    "@vercel/ncc": "^0.38.4",
+    "@vitest/coverage-v8": "^4.0.15",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
+    "vitest": "^4.0.15"
+  }
+}
