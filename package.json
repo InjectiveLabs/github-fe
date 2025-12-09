@@ -5,26 +5,30 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "npm run test:shared && npm run test:release-note && npm run test:prod-deployment && npm run test:fe-staging",
+    "test": "pnpm run test:shared && pnpm run test:release-note && pnpm run test:prod-deployment && pnpm run test:fe-staging",
     "test:shared": "cd actions/shared && npm test",
     "test:release-note": "cd actions/release-note && npm test",
     "test:prod-deployment": "cd actions/prod-deployment-notification && npm test",
     "test:fe-staging": "cd actions/fe-staging-notification && npm test",
-    "test:coverage": "npm run test:coverage:shared && npm run test:coverage:release-note && npm run test:coverage:prod-deployment",
+    "test:coverage": "pnpm run test:coverage:shared && pnpm run test:coverage:release-note && pnpm run test:coverage:prod-deployment",
     "test:coverage:shared": "cd actions/shared && npm run test:coverage",
     "test:coverage:release-note": "cd actions/release-note && npm run test:coverage",
     "test:coverage:prod-deployment": "cd actions/prod-deployment-notification && npm run test:coverage",
-    "build": "npm run build:release-note && npm run build:prod-deployment && npm run build:fe-staging",
+    "build": "pnpm run build:release-note && pnpm run build:prod-deployment && pnpm run build:fe-staging",
     "build:release-note": "cd actions/release-note && npm run build",
     "build:prod-deployment": "cd actions/prod-deployment-notification && npm run build",
     "build:fe-staging": "cd actions/fe-staging-notification && npm run build",
-    "install:all": "npm run install:shared && npm run install:release-note && npm run install:prod-deployment && npm run install:fe-staging",
+    "install:all": "pnpm run install:shared && pnpm run install:release-note && pnpm run install:prod-deployment && pnpm run install:fe-staging",
     "install:shared": "cd actions/shared && npm install",
     "install:release-note": "cd actions/release-note && npm install",
     "install:prod-deployment": "cd actions/prod-deployment-notification && npm install",
-    "install:fe-staging": "cd actions/fe-staging-notification && npm install"
+    "install:fe-staging": "cd actions/fe-staging-notification && npm install",
+    "prepare": "husky"
   },
   "keywords": [],
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "devDependencies": {
+    "husky": "^9.1.7"
+  }
 }
