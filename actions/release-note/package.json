@@ -1,0 +1,25 @@
+{
+  "name": "release-note",
+  "version": "1.0.0",
+  "description": "Generate GitHub release notes from git commits",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "ncc build src/index.js -o dist",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@actions/core": "^1.11.1",
+    "simple-git": "^3.27.0"
+  },
+  "devDependencies": {
+    "@vercel/ncc": "^0.38.4",
+    "@vitest/coverage-v8": "^4.0.15",
+    "vitest": "^4.0.15"
+  }
+}

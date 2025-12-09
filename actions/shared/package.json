@@ -1,0 +1,28 @@
+{
+  "name": "@anthropic/actions-shared",
+  "version": "1.0.0",
+  "description": "Shared utilities for GitHub Actions",
+  "main": "src/index.js",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.js",
+    "./formatting": "./src/formatting.js",
+    "./version": "./src/version.js",
+    "./git": "./src/git.js"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "simple-git": "^3.27.0"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^4.0.15",
+    "vitest": "^4.0.15"
+  }
+}

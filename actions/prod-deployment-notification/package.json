@@ -1,0 +1,24 @@
+{
+  "name": "prod-deployment-notification",
+  "version": "1.0.0",
+  "description": "Sends Slack notifications for production deployments with release notes",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "ncc build src/index.js -o dist",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@actions/core": "^1.11.1"
+  },
+  "devDependencies": {
+    "@vercel/ncc": "^0.38.4",
+    "@vitest/coverage-v8": "^4.0.15",
+    "vitest": "^4.0.15"
+  }
+}
