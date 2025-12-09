@@ -1,12 +1,12 @@
 import * as core from '@actions/core';
 import { getBranchName } from './git.js';
-import { extractJiraTickets, generateJiraLinks } from './jira.js';
+import { generateJiraLinks, extractJiraTickets } from './jira.js';
 import {
-  searchExistingMessage,
-  updateMessage,
   postMessage,
-  postThreadReply,
   addMessageId,
+  updateMessage,
+  postThreadReply,
+  searchExistingMessage,
 } from './slack.js';
 
 async function run() {
@@ -119,4 +119,7 @@ async function run() {
   }
 }
 
-run();
+run().catch((error) => {
+  core.setFailed(`Unexpected error: ${error.message}`);
+  process.exit(1);
+});

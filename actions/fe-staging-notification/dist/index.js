@@ -27454,7 +27454,7 @@ function getBranchName() {
       if (eventData.inputs?.branch) {
         return eventData.inputs.branch;
       }
-    } catch (error) {
+    } catch (_error) {
       // Ignore errors reading event file
     }
   }
@@ -27477,6 +27477,7 @@ var exec = __nccwpck_require__(5236);
 ;// CONCATENATED MODULE: ./src/jira.js
 
 
+
 const JIRA_BASE_URL = 'https://injective-labs.atlassian.net/browse';
 const JIRA_PATTERN = /IL-\d{3,5}/gi;
 
@@ -27487,8 +27488,8 @@ async function extractJiraTickets() {
   // Fetch origin/dev for comparison
   try {
     await (0,exec.exec)('git', ['fetch', 'origin', 'dev'], { silent: true });
-  } catch (error) {
-    console.log('Could not fetch origin/dev, proceeding with local reference');
+  } catch (_error) {
+    core.warning('Could not fetch origin/dev, proceeding with local reference');
   }
 
   // Get commit messages
@@ -27502,8 +27503,9 @@ async function extractJiraTickets() {
         },
       },
     });
-  } catch (error) {
-    console.log('No commits found');
+  } catch (_error) {
+    core.info('No commits found');
+
     return [];
   }
 
@@ -27530,8 +27532,11 @@ var external_https_ = __nccwpck_require__(5692);
 ;// CONCATENATED MODULE: ./src/slack.js
 
 
+
+
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 2000;
+const REQUEST_TIMEOUT_MS = 30000;
 
 /**
  * Make an HTTPS request with retry logic
@@ -27553,7 +27558,7 @@ async function slackRequest(method, path, token, body = null) {
       }
 
       lastError = new Error(`Slack API error: ${result.error}`);
-      console.log(`Attempt ${attempt} failed with ${result.error}, retrying...`);
+      core.info(`Attempt ${attempt} failed with ${result.error}, retrying...`);
     } catch (error) {
       // If it's a non-retryable Slack error, re-throw immediately
       if (error.message.includes('Slack API error:') && !error.message.includes('rate_limited') && 
@@ -27566,7 +27571,7 @@ async function slackRequest(method, path, token, body = null) {
       if (attempt === MAX_RETRIES) {
         throw error;
       }
-      console.log(`Attempt ${attempt} failed: ${error.message}, retrying...`);
+      core.info(`Attempt ${attempt} failed: ${error.message}, retrying...`);
     }
 
     // Wait before retrying
@@ -27583,6 +27588,7 @@ function isRetryableError(error) {
     'internal_error',
     'request_timeout',
   ];
+
   return retryableErrors.includes(error);
 }
 
@@ -27609,13 +27615,19 @@ function makeRequest(method, path, token, body) {
       res.on('end', () => {
         try {
           resolve(JSON.parse(data));
-        } catch (e) {
-          reject(new Error(`Failed to parse Slack response: ${data}`));
+        } catch (_e) {
+          reject(new Error(`Failed to parse Slack response`));
         }
       });
     });
 
     req.on('error', reject);
+
+    // Add timeout to prevent hanging requests
+    req.setTimeout(REQUEST_TIMEOUT_MS, () => {
+      req.destroy();
+      reject(new Error('Request timeout'));
+    });
 
     if (body) {
       req.write(JSON.stringify(body));
@@ -27675,7 +27687,8 @@ async function searchExistingMessage({ userToken, channel, repo, branchName }) {
  * Extract Jira tickets from text
  */
 function extractJiraFromText(text) {
-  const matches = text.match(/IL-\d{3,5}/gi) || [];
+  const matches = text.match(JIRA_PATTERN) || [];
+
   return [...new Set(matches.map((t) => t.toUpperCase()))];
 }
 
@@ -27711,7 +27724,7 @@ async function updateMessage({
 
   if (ticketsToAdd.length > 0) {
     const newLinks = ticketsToAdd
-      .map((t) => `<https://injective-labs.atlassian.net/browse/${t}|${t}>`)
+      .map((t) => `<${JIRA_BASE_URL}/${t}|${t}>`)
       .join(', ');
 
     if (updatedText.includes('Jira tickets:')) {
@@ -27920,5 +27933,8 @@ async function run() {
   }
 }
 
-run();
+run().catch((error) => {
+  core.setFailed(`Unexpected error: ${error.message}`);
+  process.exit(1);
+});
 

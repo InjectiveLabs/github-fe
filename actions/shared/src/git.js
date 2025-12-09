@@ -47,6 +47,7 @@ export async function getCommitDate(git, ref) {
 export async function refExists(git, ref) {
   try {
     await git.revparse(['--verify', ref]);
+
     return true;
   } catch {
     return false;
@@ -84,6 +85,7 @@ export async function getCommitsSince(git, branch, sinceRef) {
     }));
   } catch (error) {
     console.warn(`Warning: git log failed: ${error.message}`);
+
     return [];
   }
 }
@@ -120,6 +122,7 @@ export async function getCommitsBetween(git, fromRef, toRef) {
     }));
   } catch (error) {
     console.warn(`Warning: git log failed: ${error.message}`);
+
     return [];
   }
 }
@@ -133,6 +136,7 @@ export async function getCommitsBetween(git, fromRef, toRef) {
 export async function getLatestTag(git) {
   try {
     const tags = await git.tags(['--sort=-creatordate']);
+
     return tags.latest || null;
   } catch {
     return null;

@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { getBranchName } from '../src/git.js';
-import { writeFileSync, unlinkSync, mkdtempSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { unlinkSync, mkdtempSync, writeFileSync } from 'fs';
+import { it, expect, describe, afterEach, beforeEach } from 'vitest';
+import { getBranchName } from '../src/git.js';
 
 describe('git', () => {
   describe('getBranchName', () => {
@@ -28,7 +28,7 @@ describe('git', () => {
       // Clean up temp file if exists
       try {
         unlinkSync(eventFilePath);
-      } catch (e) {
+      } catch (_e) {
         // Ignore if file doesn't exist
       }
     });

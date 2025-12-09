@@ -1,9 +1,9 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { it, vi, expect, describe, afterEach, beforeEach } from 'vitest';
 import {
-  extractJiraFromText,
-  isRetryableError,
   sleep,
   slackRequest,
+  isRetryableError,
+  extractJiraFromText,
 } from '../src/slack.js';
 
 // Mock https module
@@ -116,11 +116,12 @@ Jira tickets: IL-9999`;
       https.request.mockImplementation((options, callback) => {
         const res = {
           on: (event, handler) => {
-            if (event === 'data') handler(JSON.stringify(mockResponse));
-            if (event === 'end') handler();
+            if (event === 'data') {handler(JSON.stringify(mockResponse));}
+            if (event === 'end') {handler();}
           },
         };
         callback(res);
+
         return {
           on: vi.fn(),
           write: vi.fn(),
@@ -138,11 +139,12 @@ Jira tickets: IL-9999`;
       https.request.mockImplementation((options, callback) => {
         const res = {
           on: (event, handler) => {
-            if (event === 'data') handler(JSON.stringify(mockResponse));
-            if (event === 'end') handler();
+            if (event === 'data') {handler(JSON.stringify(mockResponse));}
+            if (event === 'end') {handler();}
           },
         };
         callback(res);
+
         return {
           on: vi.fn(),
           write: vi.fn(),
@@ -165,11 +167,12 @@ Jira tickets: IL-9999`;
         
         const res = {
           on: (event, handler) => {
-            if (event === 'data') handler(JSON.stringify(mockResponse));
-            if (event === 'end') handler();
+            if (event === 'data') {handler(JSON.stringify(mockResponse));}
+            if (event === 'end') {handler();}
           },
         };
         callback(res);
+
         return {
           on: vi.fn(),
           write: vi.fn(),
@@ -194,11 +197,12 @@ Jira tickets: IL-9999`;
       https.request.mockImplementation((options, callback) => {
         const res = {
           on: (event, handler) => {
-            if (event === 'data') handler(JSON.stringify(mockResponse));
-            if (event === 'end') handler();
+            if (event === 'data') {handler(JSON.stringify(mockResponse));}
+            if (event === 'end') {handler();}
           },
         };
         callback(res);
+
         return {
           on: vi.fn(),
           write: () => { writeWasCalled = true; },

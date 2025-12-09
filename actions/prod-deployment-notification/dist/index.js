@@ -27442,7 +27442,7 @@ var core = __nccwpck_require__(7484);
  * @returns {string} - Text with Slack formatted links
  */
 function convertMarkdownToSlack(text) {
-  if (!text) return '';
+  if (!text) {return '';}
   
   // Convert [text](url) to <url|text>
   return text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<$2|$1>');
@@ -27455,7 +27455,7 @@ function convertMarkdownToSlack(text) {
  * @returns {string} - Escaped message
  */
 function escapeCommitMessage(message) {
-  if (!message) return '';
+  if (!message) {return '';}
   
   return message
     .replace(/`/g, '\\`')
@@ -27471,7 +27471,7 @@ function escapeCommitMessage(message) {
  * @returns {string} - Formatted author string (e.g., "@username" or "Name (email)")
  */
 function formatGitAuthor(authorName, authorEmail) {
-  if (!authorName) return 'unknown';
+  if (!authorName) {return 'unknown';}
   
   // GitHub noreply email format: username@users.noreply.github.com 
   // or ID+username@users.noreply.github.com
@@ -27497,9 +27497,10 @@ function formatGitAuthor(authorName, authorEmail) {
  * @returns {string|null} - PR number (e.g., "1234") or null if not found
  */
 function extractPRNumber(message) {
-  if (!message) return null;
+  if (!message) {return null;}
   
   const match = message.match(/#(\d+)/);
+
   return match ? match[1] : null;
 }
 
@@ -27598,6 +27599,22 @@ function buildDeploymentPayload({ projectName, releaseNotes, repoUrl, runId }) {
 }
 
 /**
+ * Validate that the URL is a valid Slack webhook URL
+ * 
+ * @param {string} url - URL to validate
+ * @returns {boolean} - true if valid Slack webhook URL
+ */
+function isValidSlackWebhookUrl(url) {
+  try {
+    const parsed = new URL(url);
+
+    return parsed.protocol === 'https:' && parsed.hostname === 'hooks.slack.com';
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Send a message to Slack via webhook
  * 
  * @param {string} webhookUrl - Slack webhook URL
@@ -27605,6 +27622,10 @@ function buildDeploymentPayload({ projectName, releaseNotes, repoUrl, runId }) {
  * @returns {Promise<void>}
  */
 async function sendSlackNotification(webhookUrl, payload) {
+  if (!isValidSlackWebhookUrl(webhookUrl)) {
+    throw new Error('Invalid Slack webhook URL. Must be an HTTPS URL from hooks.slack.com');
+  }
+  
   const response = await fetch(webhookUrl, {
     method: 'POST',
     headers: {
@@ -27636,6 +27657,14 @@ async function run() {
     // Get repository and run ID from GitHub context
     const repository = process.env.GITHUB_REPOSITORY;
     const runId = process.env.GITHUB_RUN_ID;
+    
+    if (!repository) {
+      throw new Error('GITHUB_REPOSITORY environment variable is not set');
+    }
+    if (!runId) {
+      throw new Error('GITHUB_RUN_ID environment variable is not set');
+    }
+    
     const repoUrl = `https://github.com/${repository}`;
     
     core.info(`Sending deployment notification for ${projectName}`);
@@ -27666,5 +27695,8 @@ async function run() {
   }
 }
 
-run();
+run().catch((error) => {
+  core.setFailed(`Unexpected error: ${error.message}`);
+  process.exit(1);
+});
 

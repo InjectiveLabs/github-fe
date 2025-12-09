@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { buildDeploymentPayload, sendSlackNotification, convertMarkdownToSlack } from '../src/slack.js';
+import { it, vi, expect, describe, beforeEach } from 'vitest';
+import { sendSlackNotification, buildDeploymentPayload, convertMarkdownToSlack } from '../src/slack.js';
 
 // Real commit data from InjectiveLabs/injective-helix repository
 const REAL_COMMITS = {
@@ -52,6 +52,7 @@ function generateMockReleaseNotes(commits) {
     const commitLink = `[${shortHash}](${REPO_URL}/commit/${commit.hash})`;
     const prMatch = commit.message.match(/#(\d+)/);
     const prInfo = prMatch ? ` in [#${prMatch[1]}](${REPO_URL}/pull/${prMatch[1]})` : '';
+
     return `- ${commitLink} - ${commit.message} by @${commit.authorName}${prInfo}`;
   }).join('\n');
 }

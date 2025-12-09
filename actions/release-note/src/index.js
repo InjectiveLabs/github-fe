@@ -46,4 +46,7 @@ async function run() {
   }
 }
 
-run();
+run().catch((error) => {
+  core.setFailed(`Unexpected error: ${error.message}`);
+  process.exit(1);
+});

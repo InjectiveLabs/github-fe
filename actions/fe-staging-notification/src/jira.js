@@ -1,4 +1,5 @@
 import { exec } from '@actions/exec';
+import * as core from '@actions/core';
 
 export const JIRA_BASE_URL = 'https://injective-labs.atlassian.net/browse';
 export const JIRA_PATTERN = /IL-\d{3,5}/gi;
@@ -10,8 +11,8 @@ export async function extractJiraTickets() {
   // Fetch origin/dev for comparison
   try {
     await exec('git', ['fetch', 'origin', 'dev'], { silent: true });
-  } catch (error) {
-    console.log('Could not fetch origin/dev, proceeding with local reference');
+  } catch (_error) {
+    core.warning('Could not fetch origin/dev, proceeding with local reference');
   }
 
   // Get commit messages
@@ -25,8 +26,9 @@ export async function extractJiraTickets() {
         },
       },
     });
-  } catch (error) {
-    console.log('No commits found');
+  } catch (_error) {
+    core.info('No commits found');
+
     return [];
   }
 

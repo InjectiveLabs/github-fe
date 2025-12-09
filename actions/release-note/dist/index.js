@@ -28765,6 +28765,99 @@ var __webpack_exports__ = {};
 
 // EXTERNAL MODULE: ./node_modules/@actions/core/lib/core.js
 var core = __nccwpck_require__(7484);
+;// CONCATENATED MODULE: ../shared/src/version.js
+/**
+ * Version utilities for GitHub Actions
+ * Handles semantic versioning operations
+ */
+
+/**
+ * Parse a semantic version string into components
+ * 
+ * @param {string} version - Version string (e.g., "v1.2.3" or "1.2.3")
+ * @returns {Object} - Parsed version { major, minor, patch, prefix }
+ * @throws {Error} - If version format is invalid
+ */
+function parseVersion(version) {
+  if (!version) {
+    throw new Error('Version string is required');
+  }
+  
+  // Check for 'v' prefix
+  const hasPrefix = version.startsWith('v');
+  const versionWithoutPrefix = hasPrefix ? version.slice(1) : version;
+  
+  const parts = versionWithoutPrefix.split('.');
+  
+  if (parts.length !== 3) {
+    throw new Error(`Invalid version format: ${version}. Expected format: v1.2.3 or 1.2.3`);
+  }
+  
+  const [majorStr, minorStr, patchStr] = parts;
+  const major = parseInt(majorStr, 10);
+  const minor = parseInt(minorStr, 10);
+  const patch = parseInt(patchStr, 10);
+  
+  if (isNaN(major) || isNaN(minor) || isNaN(patch)) {
+    throw new Error(`Invalid version format: ${version}. Version components must be numbers`);
+  }
+  
+  if (major < 0 || minor < 0 || patch < 0) {
+    throw new Error(`Invalid version format: ${version}. Version components must be non-negative`);
+  }
+  
+  return { major, minor, patch, prefix: hasPrefix ? 'v' : '' };
+}
+
+/**
+ * Increment the patch version
+ * 
+ * @param {string} version - Current version string
+ * @returns {string} - Incremented version string (always with 'v' prefix)
+ */
+function incrementPatch(version) {
+  const { major, minor, patch } = parseVersion(version);
+
+  return `v${major}.${minor}.${patch + 1}`;
+}
+
+/**
+ * Increment the minor version (resets patch to 0)
+ * 
+ * @param {string} version - Current version string
+ * @returns {string} - Incremented version string (always with 'v' prefix)
+ */
+function incrementMinor(version) {
+  const { major, minor } = parseVersion(version);
+
+  return `v${major}.${minor + 1}.0`;
+}
+
+/**
+ * Increment the major version (resets minor and patch to 0)
+ * 
+ * @param {string} version - Current version string
+ * @returns {string} - Incremented version string (always with 'v' prefix)
+ */
+function incrementMajor(version) {
+  const { major } = parseVersion(version);
+
+  return `v${major + 1}.0.0`;
+}
+
+/**
+ * Format version object back to string
+ * 
+ * @param {Object} version - Version object { major, minor, patch }
+ * @param {boolean} withPrefix - Whether to include 'v' prefix (default: true)
+ * @returns {string} - Formatted version string
+ */
+function formatVersion({ major, minor, patch }, withPrefix = true) {
+  const prefix = withPrefix ? 'v' : '';
+
+  return `${prefix}${major}.${minor}.${patch}`;
+}
+
 ;// CONCATENATED MODULE: external "node:buffer"
 const external_node_buffer_namespaceObject = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("node:buffer");
 // EXTERNAL MODULE: ../shared/node_modules/@kwsites/file-exists/dist/index.js
@@ -33623,6 +33716,7 @@ async function getCommitDate(git, ref) {
 async function refExists(git, ref) {
   try {
     await git.revparse(['--verify', ref]);
+
     return true;
   } catch {
     return false;
@@ -33660,6 +33754,7 @@ async function getCommitsSince(git, branch, sinceRef) {
     }));
   } catch (error) {
     console.warn(`Warning: git log failed: ${error.message}`);
+
     return [];
   }
 }
@@ -33696,6 +33791,7 @@ async function getCommitsBetween(git, fromRef, toRef) {
     }));
   } catch (error) {
     console.warn(`Warning: git log failed: ${error.message}`);
+
     return [];
   }
 }
@@ -33709,6 +33805,7 @@ async function getCommitsBetween(git, fromRef, toRef) {
 async function getLatestTag(git) {
   try {
     const tags = await git.tags(['--sort=-creatordate']);
+
     return tags.latest || null;
   } catch {
     return null;
@@ -33747,7 +33844,7 @@ function filterCommitsAfter(commits, afterTimestamp) {
  * @returns {string} - Text with Slack formatted links
  */
 function convertMarkdownToSlack(text) {
-  if (!text) return '';
+  if (!text) {return '';}
   
   // Convert [text](url) to <url|text>
   return text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<$2|$1>');
@@ -33760,7 +33857,7 @@ function convertMarkdownToSlack(text) {
  * @returns {string} - Escaped message
  */
 function escapeCommitMessage(message) {
-  if (!message) return '';
+  if (!message) {return '';}
   
   return message
     .replace(/`/g, '\\`')
@@ -33776,7 +33873,7 @@ function escapeCommitMessage(message) {
  * @returns {string} - Formatted author string (e.g., "@username" or "Name (email)")
  */
 function formatGitAuthor(authorName, authorEmail) {
-  if (!authorName) return 'unknown';
+  if (!authorName) {return 'unknown';}
   
   // GitHub noreply email format: username@users.noreply.github.com 
   // or ID+username@users.noreply.github.com
@@ -33802,9 +33899,10 @@ function formatGitAuthor(authorName, authorEmail) {
  * @returns {string|null} - PR number (e.g., "1234") or null if not found
  */
 function extractPRNumber(message) {
-  if (!message) return null;
+  if (!message) {return null;}
   
   const match = message.match(/#(\d+)/);
+
   return match ? match[1] : null;
 }
 
@@ -33847,95 +33945,6 @@ function formatReleaseNotes(commits, repoUrl) {
   }
   
   return commits.map(commit => formatCommitLine(commit, repoUrl)).join('\n');
-}
-
-;// CONCATENATED MODULE: ../shared/src/version.js
-/**
- * Version utilities for GitHub Actions
- * Handles semantic versioning operations
- */
-
-/**
- * Parse a semantic version string into components
- * 
- * @param {string} version - Version string (e.g., "v1.2.3" or "1.2.3")
- * @returns {Object} - Parsed version { major, minor, patch, prefix }
- * @throws {Error} - If version format is invalid
- */
-function parseVersion(version) {
-  if (!version) {
-    throw new Error('Version string is required');
-  }
-  
-  // Check for 'v' prefix
-  const hasPrefix = version.startsWith('v');
-  const versionWithoutPrefix = hasPrefix ? version.slice(1) : version;
-  
-  const parts = versionWithoutPrefix.split('.');
-  
-  if (parts.length !== 3) {
-    throw new Error(`Invalid version format: ${version}. Expected format: v1.2.3 or 1.2.3`);
-  }
-  
-  const [majorStr, minorStr, patchStr] = parts;
-  const major = parseInt(majorStr, 10);
-  const minor = parseInt(minorStr, 10);
-  const patch = parseInt(patchStr, 10);
-  
-  if (isNaN(major) || isNaN(minor) || isNaN(patch)) {
-    throw new Error(`Invalid version format: ${version}. Version components must be numbers`);
-  }
-  
-  if (major < 0 || minor < 0 || patch < 0) {
-    throw new Error(`Invalid version format: ${version}. Version components must be non-negative`);
-  }
-  
-  return { major, minor, patch, prefix: hasPrefix ? 'v' : '' };
-}
-
-/**
- * Increment the patch version
- * 
- * @param {string} version - Current version string
- * @returns {string} - Incremented version string (always with 'v' prefix)
- */
-function incrementPatch(version) {
-  const { major, minor, patch } = parseVersion(version);
-  return `v${major}.${minor}.${patch + 1}`;
-}
-
-/**
- * Increment the minor version (resets patch to 0)
- * 
- * @param {string} version - Current version string
- * @returns {string} - Incremented version string (always with 'v' prefix)
- */
-function incrementMinor(version) {
-  const { major, minor } = parseVersion(version);
-  return `v${major}.${minor + 1}.0`;
-}
-
-/**
- * Increment the major version (resets minor and patch to 0)
- * 
- * @param {string} version - Current version string
- * @returns {string} - Incremented version string (always with 'v' prefix)
- */
-function incrementMajor(version) {
-  const { major } = parseVersion(version);
-  return `v${major + 1}.0.0`;
-}
-
-/**
- * Format version object back to string
- * 
- * @param {Object} version - Version object { major, minor, patch }
- * @param {boolean} withPrefix - Whether to include 'v' prefix (default: true)
- * @returns {string} - Formatted version string
- */
-function formatVersion({ major, minor, patch }, withPrefix = true) {
-  const prefix = withPrefix ? 'v' : '';
-  return `${prefix}${major}.${minor}.${patch}`;
 }
 
 ;// CONCATENATED MODULE: ./src/release-notes.js
@@ -34047,5 +34056,8 @@ async function run() {
   }
 }
 
-run();
+run().catch((error) => {
+  core.setFailed(`Unexpected error: ${error.message}`);
+  process.exit(1);
+});
 

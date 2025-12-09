@@ -1,5 +1,5 @@
 import * as core from '@actions/core';
-import { buildDeploymentPayload, sendSlackNotification, convertMarkdownToSlack } from './slack.js';
+import { sendSlackNotification, buildDeploymentPayload, convertMarkdownToSlack } from './slack.js';
 
 async function run() {
   try {
@@ -11,6 +11,14 @@ async function run() {
     // Get repository and run ID from GitHub context
     const repository = process.env.GITHUB_REPOSITORY;
     const runId = process.env.GITHUB_RUN_ID;
+    
+    if (!repository) {
+      throw new Error('GITHUB_REPOSITORY environment variable is not set');
+    }
+    if (!runId) {
+      throw new Error('GITHUB_RUN_ID environment variable is not set');
+    }
+    
     const repoUrl = `https://github.com/${repository}`;
     
     core.info(`Sending deployment notification for ${projectName}`);
@@ -41,4 +49,7 @@ async function run() {
   }
 }
 
-run();
+run().catch((error) => {
+  core.setFailed(`Unexpected error: ${error.message}`);
+  process.exit(1);
+});

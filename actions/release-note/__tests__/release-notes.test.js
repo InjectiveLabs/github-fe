@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { computeBugsnagVersion, formatCommitLine, formatReleaseNotes } from '../src/release-notes.js';
+import { it, expect, describe } from 'vitest';
+import { formatCommitLine, formatReleaseNotes, computeBugsnagVersion } from '../src/release-notes.js';
 
 // Real commit data from InjectiveLabs/injective-helix repository
 const REAL_COMMITS = {

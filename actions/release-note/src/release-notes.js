@@ -2,9 +2,9 @@
  * Release notes generation utilities
  */
 
-import { createGit, getCommitsBetween, refExists } from '../../shared/src/git.js';
-import { formatReleaseNotes, formatCommitLine } from '../../shared/src/formatting.js';
 import { incrementPatch } from '../../shared/src/version.js';
+import { createGit, refExists, getCommitsBetween } from '../../shared/src/git.js';
+import { formatCommitLine, formatReleaseNotes } from '../../shared/src/formatting.js';
 
 /**
  * Generate release notes between a previous tag and a branch

@@ -1,7 +1,10 @@
 import https from 'https';
+import * as core from '@actions/core';
+import { JIRA_PATTERN, JIRA_BASE_URL } from './jira.js';
 
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 2000;
+const REQUEST_TIMEOUT_MS = 30000;
 
 /**
  * Make an HTTPS request with retry logic
@@ -23,7 +26,7 @@ export async function slackRequest(method, path, token, body = null) {
       }
 
       lastError = new Error(`Slack API error: ${result.error}`);
-      console.log(`Attempt ${attempt} failed with ${result.error}, retrying...`);
+      core.info(`Attempt ${attempt} failed with ${result.error}, retrying...`);
     } catch (error) {
       // If it's a non-retryable Slack error, re-throw immediately
       if (error.message.includes('Slack API error:') && !error.message.includes('rate_limited') && 
@@ -36,7 +39,7 @@ export async function slackRequest(method, path, token, body = null) {
       if (attempt === MAX_RETRIES) {
         throw error;
       }
-      console.log(`Attempt ${attempt} failed: ${error.message}, retrying...`);
+      core.info(`Attempt ${attempt} failed: ${error.message}, retrying...`);
     }
 
     // Wait before retrying
@@ -53,6 +56,7 @@ export function isRetryableError(error) {
     'internal_error',
     'request_timeout',
   ];
+
   return retryableErrors.includes(error);
 }
 
@@ -79,13 +83,19 @@ function makeRequest(method, path, token, body) {
       res.on('end', () => {
         try {
           resolve(JSON.parse(data));
-        } catch (e) {
-          reject(new Error(`Failed to parse Slack response: ${data}`));
+        } catch (_e) {
+          reject(new Error(`Failed to parse Slack response`));
         }
       });
     });
 
     req.on('error', reject);
+
+    // Add timeout to prevent hanging requests
+    req.setTimeout(REQUEST_TIMEOUT_MS, () => {
+      req.destroy();
+      reject(new Error('Request timeout'));
+    });
 
     if (body) {
       req.write(JSON.stringify(body));
@@ -145,7 +155,8 @@ export async function searchExistingMessage({ userToken, channel, repo, branchNa
  * Extract Jira tickets from text
  */
 export function extractJiraFromText(text) {
-  const matches = text.match(/IL-\d{3,5}/gi) || [];
+  const matches = text.match(JIRA_PATTERN) || [];
+
   return [...new Set(matches.map((t) => t.toUpperCase()))];
 }
 
@@ -181,7 +192,7 @@ export async function updateMessage({
 
   if (ticketsToAdd.length > 0) {
     const newLinks = ticketsToAdd
-      .map((t) => `<https://injective-labs.atlassian.net/browse/${t}|${t}>`)
+      .map((t) => `<${JIRA_BASE_URL}/${t}|${t}>`)
       .join(', ');
 
     if (updatedText.includes('Jira tickets:')) {

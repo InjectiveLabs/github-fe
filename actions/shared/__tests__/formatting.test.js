@@ -1,19 +1,19 @@
-import { describe, it, expect } from 'vitest';
+import { it, expect, describe } from 'vitest';
 import {
-  convertMarkdownToSlack,
-  escapeCommitMessage,
+  COMMITS,
+  AUTHORS,
+  REPO_URL,
+  RELEASE_SCENARIOS,
+  generateMockReleaseNotes,
+} from './fixtures.js';
+import {
   formatGitAuthor,
   extractPRNumber,
   formatCommitLine,
   formatReleaseNotes,
+  escapeCommitMessage,
+  convertMarkdownToSlack,
 } from '../src/formatting.js';
-import {
-  REPO_URL,
-  COMMITS,
-  AUTHORS,
-  RELEASE_SCENARIOS,
-  generateMockReleaseNotes,
-} from './fixtures.js';
 
 describe('formatting', () => {
   describe('convertMarkdownToSlack', () => {

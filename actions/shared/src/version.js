@@ -49,6 +49,7 @@ export function parseVersion(version) {
  */
 export function incrementPatch(version) {
   const { major, minor, patch } = parseVersion(version);
+
   return `v${major}.${minor}.${patch + 1}`;
 }
 
@@ -60,6 +61,7 @@ export function incrementPatch(version) {
  */
 export function incrementMinor(version) {
   const { major, minor } = parseVersion(version);
+
   return `v${major}.${minor + 1}.0`;
 }
 
@@ -71,6 +73,7 @@ export function incrementMinor(version) {
  */
 export function incrementMajor(version) {
   const { major } = parseVersion(version);
+
   return `v${major + 1}.0.0`;
 }
 
@@ -83,5 +86,6 @@ export function incrementMajor(version) {
  */
 export function formatVersion({ major, minor, patch }, withPrefix = true) {
   const prefix = withPrefix ? 'v' : '';
+
   return `${prefix}${major}.${minor}.${patch}`;
 }

@@ -51,6 +51,22 @@ export function buildDeploymentPayload({ projectName, releaseNotes, repoUrl, run
 }
 
 /**
+ * Validate that the URL is a valid Slack webhook URL
+ * 
+ * @param {string} url - URL to validate
+ * @returns {boolean} - true if valid Slack webhook URL
+ */
+export function isValidSlackWebhookUrl(url) {
+  try {
+    const parsed = new URL(url);
+
+    return parsed.protocol === 'https:' && parsed.hostname === 'hooks.slack.com';
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Send a message to Slack via webhook
  * 
  * @param {string} webhookUrl - Slack webhook URL
@@ -58,6 +74,10 @@ export function buildDeploymentPayload({ projectName, releaseNotes, repoUrl, run
  * @returns {Promise<void>}
  */
 export async function sendSlackNotification(webhookUrl, payload) {
+  if (!isValidSlackWebhookUrl(webhookUrl)) {
+    throw new Error('Invalid Slack webhook URL. Must be an HTTPS URL from hooks.slack.com');
+  }
+  
   const response = await fetch(webhookUrl, {
     method: 'POST',
     headers: {

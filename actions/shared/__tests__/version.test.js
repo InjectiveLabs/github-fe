@@ -1,10 +1,10 @@
-import { describe, it, expect } from 'vitest';
+import { it, expect, describe } from 'vitest';
 import {
   parseVersion,
+  formatVersion,
   incrementPatch,
   incrementMinor,
   incrementMajor,
-  formatVersion,
 } from '../src/version.js';
 
 describe('version', () => {

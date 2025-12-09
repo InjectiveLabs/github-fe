@@ -1,5 +1,5 @@
 {
-  "name": "@anthropic/actions-shared",
+  "name": "@injectivelabs/actions-shared",
   "version": "1.0.0",
   "description": "Shared utilities for GitHub Actions",
   "main": "src/index.js",

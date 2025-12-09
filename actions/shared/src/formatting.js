@@ -12,7 +12,7 @@
  * @returns {string} - Text with Slack formatted links
  */
 export function convertMarkdownToSlack(text) {
-  if (!text) return '';
+  if (!text) {return '';}
   
   // Convert [text](url) to <url|text>
   return text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<$2|$1>');
@@ -25,7 +25,7 @@ export function convertMarkdownToSlack(text) {
  * @returns {string} - Escaped message
  */
 export function escapeCommitMessage(message) {
-  if (!message) return '';
+  if (!message) {return '';}
   
   return message
     .replace(/`/g, '\\`')
@@ -41,7 +41,7 @@ export function escapeCommitMessage(message) {
  * @returns {string} - Formatted author string (e.g., "@username" or "Name (email)")
  */
 export function formatGitAuthor(authorName, authorEmail) {
-  if (!authorName) return 'unknown';
+  if (!authorName) {return 'unknown';}
   
   // GitHub noreply email format: username@users.noreply.github.com 
   // or ID+username@users.noreply.github.com
@@ -67,9 +67,10 @@ export function formatGitAuthor(authorName, authorEmail) {
  * @returns {string|null} - PR number (e.g., "1234") or null if not found
  */
 export function extractPRNumber(message) {
-  if (!message) return null;
+  if (!message) {return null;}
   
   const match = message.match(/#(\d+)/);
+
   return match ? match[1] : null;
 }
 

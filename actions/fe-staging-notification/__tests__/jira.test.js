@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { generateJiraLinks, JIRA_BASE_URL, JIRA_PATTERN, extractJiraTickets } from '../src/jira.js';
+import { it, vi, expect, describe, beforeEach } from 'vitest';
+import { JIRA_PATTERN, JIRA_BASE_URL, generateJiraLinks, extractJiraTickets } from '../src/jira.js';
 
 // Mock @actions/exec
 vi.mock('@actions/exec', () => ({
@@ -81,6 +81,7 @@ describe('jira', () => {
       // Mock git log to return commit messages with tickets
       exec.mockImplementationOnce((cmd, args, options) => {
         options.listeners.stdout(Buffer.from('abc1234 IL-1234 Fix bug\ndef5678 IL-5678 Add feature'));
+
         return Promise.resolve(0);
       });
 
@@ -92,6 +93,7 @@ describe('jira', () => {
       exec.mockImplementationOnce(() => Promise.resolve(0));
       exec.mockImplementationOnce((cmd, args, options) => {
         options.listeners.stdout(Buffer.from('abc1234 IL-1234 Fix\ndef5678 IL-1234 Also fix'));
+
         return Promise.resolve(0);
       });
 
@@ -111,6 +113,7 @@ describe('jira', () => {
       exec.mockImplementationOnce(() => Promise.resolve(0));
       exec.mockImplementationOnce((cmd, args, options) => {
         options.listeners.stdout(Buffer.from('abc1234 Fix some bug\ndef5678 Add feature'));
+
         return Promise.resolve(0);
       });
 
@@ -125,6 +128,7 @@ describe('jira', () => {
       // Git log still works
       exec.mockImplementationOnce((cmd, args, options) => {
         options.listeners.stdout(Buffer.from('abc1234 IL-9999 Fix'));
+
         return Promise.resolve(0);
       });
 
@@ -136,6 +140,7 @@ describe('jira', () => {
       exec.mockImplementationOnce(() => Promise.resolve(0));
       exec.mockImplementationOnce((cmd, args, options) => {
         options.listeners.stdout(Buffer.from('abc1234 il-1234 Fix'));
+
         return Promise.resolve(0);
       });
 

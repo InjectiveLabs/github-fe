@@ -22,7 +22,7 @@ export function getBranchName() {
       if (eventData.inputs?.branch) {
         return eventData.inputs.branch;
       }
-    } catch (error) {
+    } catch (_error) {
       // Ignore errors reading event file
     }
   }

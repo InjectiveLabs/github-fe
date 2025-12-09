@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { it, expect, describe } from 'vitest';
 import { filterCommitsAfter } from '../src/git.js';
 
 // Note: Git operations that require actual git calls (getCommitDate, refExists, getCommitsSince, getCommitsBetween)

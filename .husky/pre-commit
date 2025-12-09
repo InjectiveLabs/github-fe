@@ -1,3 +1,4 @@
+pnpm lint
 pnpm test
 pnpm build
 git add actions/*/dist/
