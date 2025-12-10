@@ -7,7 +7,7 @@ import { simpleGit } from 'simple-git';
 
 /**
  * Create a simple-git instance
- * 
+ *
  * @param {string} baseDir - Base directory for git operations (defaults to cwd)
  * @returns {SimpleGit} - simple-git instance
  */
@@ -17,7 +17,7 @@ export function createGit(baseDir = process.cwd()) {
 
 /**
  * Get the commit date (Unix timestamp) for a given tag or ref
- * 
+ *
  * @param {SimpleGit} git - simple-git instance
  * @param {string} ref - Git reference (tag, branch, or commit)
  * @returns {Promise<number>} - Unix timestamp
@@ -29,17 +29,17 @@ export async function getCommitDate(git, ref) {
     maxCount: 1,
     format: { timestamp: '%ct' },
   });
-  
+
   if (!log.latest) {
     throw new Error(`Could not get commit date for ref: ${ref}`);
   }
-  
+
   return parseInt(log.latest.timestamp, 10);
 }
 
 /**
  * Check if a git reference exists
- * 
+ *
  * @param {SimpleGit} git - simple-git instance
  * @param {string} ref - Git reference to check
  * @returns {Promise<boolean>} - True if ref exists
@@ -56,7 +56,7 @@ export async function refExists(git, ref) {
 
 /**
  * Get commits from a branch since a given ref/tag
- * 
+ *
  * @param {SimpleGit} git - simple-git instance
  * @param {string} branch - Branch name
  * @param {string} sinceRef - Reference to start from (e.g., tag name)
@@ -75,8 +75,8 @@ export async function getCommitsSince(git, branch, sinceRef) {
         authorEmail: '%ae',
       },
     });
-    
-    return log.all.map(commit => ({
+
+    return log.all.map((commit) => ({
       hash: commit.hash,
       timestamp: parseInt(commit.timestamp, 10),
       message: commit.message,
@@ -93,15 +93,17 @@ export async function getCommitsSince(git, branch, sinceRef) {
 /**
  * Get commits between two refs (exclusive of the 'from' ref)
  * This is useful for generating release notes between tags
- * 
- * @param {SimpleGit} git - simple-git instance  
+ *
+ * @param {SimpleGit} git - simple-git instance
  * @param {string} fromRef - Starting reference (exclusive)
  * @param {string} toRef - Ending reference (inclusive)
+ * @param {Object} options - Additional options
+ * @param {boolean} options.firstParent - Only follow first parent (useful for merge commits)
  * @returns {Promise<Array<Object>>} - Array of commit objects
  */
-export async function getCommitsBetween(git, fromRef, toRef) {
+export async function getCommitsBetween(git, fromRef, toRef, options = {}) {
   try {
-    const log = await git.log({
+    const logOptions = {
       from: fromRef,
       to: toRef,
       format: {
@@ -111,9 +113,18 @@ export async function getCommitsBetween(git, fromRef, toRef) {
         authorName: '%an',
         authorEmail: '%ae',
       },
-    });
-    
-    return log.all.map(commit => ({
+    };
+
+    // Add --first-parent flag if requested
+    // This only follows the first parent of merge commits, which gives us
+    // the direct history on the target branch without diving into merged branches
+    if (options.firstParent) {
+      logOptions['--first-parent'] = null;
+    }
+
+    const log = await git.log(logOptions);
+
+    return log.all.map((commit) => ({
       hash: commit.hash,
       timestamp: parseInt(commit.timestamp, 10),
       message: commit.message,
@@ -128,8 +139,128 @@ export async function getCommitsBetween(git, fromRef, toRef) {
 }
 
 /**
+ * Get commits between two refs, including commits from merged branches.
+ * This finds the merge commit(s) between the refs using --first-parent,
+ * then gets all commits within those merges.
+ *
+ * This is the correct way to get release notes when tags may be on
+ * different branches than the target.
+ *
+ * @param {SimpleGit} git - simple-git instance
+ * @param {string} fromRef - Starting reference (exclusive)
+ * @param {string} toRef - Ending reference (inclusive)
+ * @returns {Promise<Array<Object>>} - Array of commit objects
+ */
+export async function getCommitsBetweenWithMerges(git, fromRef, toRef) {
+  try {
+    // First, get the merge commits on the main branch history
+    const mergeCommits = await getCommitsBetween(git, fromRef, toRef, { firstParent: true });
+
+    if (mergeCommits.length === 0) {
+      return [];
+    }
+
+    // For each merge commit that is a "Merge pull request" commit,
+    // we need to get the commits that were merged
+    const allCommits = [];
+    const seenHashes = new Set();
+
+    for (const commit of mergeCommits) {
+      // Add the merge commit itself
+      if (!seenHashes.has(commit.hash)) {
+        allCommits.push(commit);
+        seenHashes.add(commit.hash);
+      }
+
+      // If this is a merge commit, get the commits from the merged branch
+      if (commit.message.startsWith('Merge pull request')) {
+        try {
+          // Get the commits that were merged (second parent's history)
+          // This uses the ^1..^2 range which gets commits reachable from
+          // the second parent but not from the first parent
+          const mergedCommits = await git.raw([
+            'log',
+            '--pretty=format:%H|%ct|%s|%an|%ae',
+            `${commit.hash}^1..${commit.hash}^2`,
+          ]);
+
+          if (mergedCommits && mergedCommits.trim()) {
+            for (const line of mergedCommits.trim().split('\n')) {
+              const [hash, timestamp, message, authorName, authorEmail] = line.split('|');
+              if (hash && !seenHashes.has(hash)) {
+                allCommits.push({
+                  hash,
+                  timestamp: parseInt(timestamp, 10),
+                  message,
+                  authorName,
+                  authorEmail,
+                });
+                seenHashes.add(hash);
+              }
+            }
+          }
+        } catch {
+          // Ignore errors for individual merge commits
+          // This can happen if the merge commit doesn't have a second parent
+        }
+      }
+    }
+
+    return allCommits;
+  } catch (error) {
+    console.warn(`Warning: git log failed: ${error.message}`);
+
+    return [];
+  }
+}
+
+/**
+ * Find the previous dev-to-master merge commit on the master branch.
+ * This is useful when tags may be placed on commits that are not on the
+ * master branch's first-parent history.
+ *
+ * @param {SimpleGit} git - simple-git instance
+ * @param {string} branch - Branch to search on (default: 'master')
+ * @param {string} currentHead - Current HEAD to start from
+ * @returns {Promise<Object|null>} - The previous merge commit or null
+ */
+export async function findPreviousDevMerge(git, _branch = 'master', currentHead = 'HEAD') {
+  try {
+    // Get the first-parent history of the branch
+    const result = await git.raw([
+      'log',
+      '--first-parent',
+      '--pretty=format:%H|%s',
+      '-n',
+      '10', // Look at last 10 merge commits
+      currentHead,
+    ]);
+
+    if (!result || !result.trim()) {
+      return null;
+    }
+
+    const lines = result.trim().split('\n');
+
+    // Skip the first one (current commit) and find the previous dev merge
+    for (let i = 1; i < lines.length; i++) {
+      const [hash, message] = lines[i].split('|');
+      if (message && /^Merge pull request #\d+ from [^/]+\/dev$/i.test(message)) {
+        return { hash, message };
+      }
+    }
+
+    return null;
+  } catch (error) {
+    console.warn(`Warning: findPreviousDevMerge failed: ${error.message}`);
+
+    return null;
+  }
+}
+
+/**
  * Get the latest tag in the repository
- * 
+ *
  * @param {SimpleGit} git - simple-git instance
  * @returns {Promise<string|null>} - Latest tag name or null
  */
@@ -146,7 +277,7 @@ export async function getLatestTag(git) {
 /**
  * Filter commits to only include those after a specific timestamp
  * Also excludes the first commit (which is typically the tag commit itself)
- * 
+ *
  * @param {Array<Object>} commits - Array of commit objects
  * @param {number} afterTimestamp - Only include commits after this timestamp
  * @returns {Array<Object>} - Filtered commits
@@ -155,7 +286,7 @@ export function filterCommitsAfter(commits, afterTimestamp) {
   if (!commits || commits.length === 0) {
     return [];
   }
-  
+
   // Skip the first commit (tag commit) and filter by timestamp
-  return commits.slice(1).filter(commit => commit.timestamp > afterTimestamp);
+  return commits.slice(1).filter((commit) => commit.timestamp > afterTimestamp);
 }

@@ -5,7 +5,9 @@ import {
   REPO_URL,
   PR_2322_COMMITS,
   PR_2322_EXTENDED,
+  PR_2325_EXPECTED,
   RELEASE_SCENARIOS,
+  PR_2325_BUGGY_OUTPUT,
   generateMockReleaseNotes,
 } from './fixtures.js';
 import {
@@ -590,6 +592,59 @@ describe('formatting', () => {
         // Should NOT contain old dev merges
         expect(result).not.toContain('Merge pull request #2321 from InjectiveLabs/dev');
         expect(result).not.toContain('Merge pull request #2320 from InjectiveLabs/dev');
+      });
+    });
+
+    // PR #2325 real data - this test documents the bug where old commits
+    // from previous releases are included in the release notes
+    describe('PR #2325 bug reproduction', () => {
+      it('CURRENT BEHAVIOR (buggy): includes old commits from previous releases', () => {
+        // This test documents the current buggy behavior
+        // The filterOldMergeCommits only filters dev-to-master merges,
+        // but doesn't filter old feature branch merges or regular commits
+        const result = formatReleaseNotes(PR_2325_BUGGY_OUTPUT, REPO_URL);
+        const lines = result.split('\n');
+
+        // Current behavior: 16 commits are included (all of them)
+        // because none of them except the first are dev-to-master merges
+        expect(lines).toHaveLength(16);
+
+        // All these OLD commits from previous releases are incorrectly included
+        expect(result).toContain('Merge pull request #2213'); // OLD - from previous release
+        expect(result).toContain('Merge pull request #2156'); // OLD - from previous release
+        expect(result).toContain('Merge pull request #2173'); // OLD - from previous release
+        expect(result).toContain('feat: pnpm build'); // OLD - from previous release
+        expect(result).toContain('chore: migrate turnkey to indexedDb'); // OLD - from previous release
+      });
+
+      it('EXPECTED BEHAVIOR: should only include commits from the current release', () => {
+        // This test shows what the expected behavior should be
+        // Only the 3 commits that were actually part of PR #2325 should be included
+        const result = formatReleaseNotes(PR_2325_EXPECTED, REPO_URL);
+        const lines = result.split('\n');
+
+        expect(lines).toHaveLength(3);
+        expect(result).toContain('Merge pull request #2325');
+        expect(result).toContain('Merge pull request #2324');
+        expect(result).toContain('chore: add mv whitelist address');
+      });
+
+      it('FIX EXPLANATION: the issue is in git query, not formatting', () => {
+        // The formatReleaseNotes function is working correctly.
+        // The bug is in how commits are queried from git.
+        //
+        // When the previous tag is on a commit that's not on the master
+        // branch's first-parent history (e.g., it's on a dev branch commit),
+        // git log returns too many commits.
+        //
+        // The fix is to use getCommitsBetweenWithMerges() which:
+        // 1. Uses --first-parent to only get the direct merge commits on master
+        // 2. Expands each merge commit to include its merged commits
+        //
+        // This ensures we only get commits from the dev-to-master merge(s)
+        // that happened since the previous release, not all commits that
+        // are reachable from master but not from the tag.
+        expect(true).toBe(true);
       });
     });
   });

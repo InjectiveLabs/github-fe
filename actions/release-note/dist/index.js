@@ -28858,6 +28858,225 @@ function formatVersion({ major, minor, patch }, withPrefix = true) {
   return `${prefix}${major}.${minor}.${patch}`;
 }
 
+;// CONCATENATED MODULE: ../shared/src/formatting.js
+/**
+ * Formatting utilities for GitHub Actions
+ * Handles conversion between different markdown formats (GitHub, Slack, etc.)
+ */
+
+/**
+ * Convert GitHub markdown links to Slack mrkdwn format
+ * GitHub format: [text](url)
+ * Slack format: <url|text>
+ *
+ * @param {string} text - Text containing GitHub markdown links
+ * @returns {string} - Text with Slack formatted links
+ */
+function convertMarkdownToSlack(text) {
+  if (!text) {
+    return '';
+  }
+
+  // Convert [text](url) to <url|text>
+  return text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<$2|$1>');
+}
+
+/**
+ * Escape special characters in commit messages for safe output
+ *
+ * @param {string} message - The commit message to escape
+ * @returns {string} - Escaped message
+ */
+function escapeCommitMessage(message) {
+  if (!message) {
+    return '';
+  }
+
+  return message.replace(/`/g, '\\`').replace(/"/g, '\\"');
+}
+
+/**
+ * Extract GitHub username from git author information
+ * Handles various email formats including GitHub noreply emails
+ *
+ * @param {string} authorName - Git author name
+ * @param {string} authorEmail - Git author email
+ * @returns {string} - Formatted author string (e.g., "@username" or "Name (email)")
+ */
+function formatGitAuthor(authorName, authorEmail) {
+  if (!authorName) {
+    return 'unknown';
+  }
+
+  // GitHub noreply email format: username@users.noreply.github.com
+  // or ID+username@users.noreply.github.com
+  const noReplyMatch = authorEmail?.match(/^(?:\d+\+)?([^@]+)@users\.noreply\.github\.com$/i);
+  if (noReplyMatch) {
+    return `@${noReplyMatch[1]}`;
+  }
+
+  // If author name has no spaces, assume it's a GitHub username
+  if (!authorName.includes(' ')) {
+    return `@${authorName}`;
+  }
+
+  // Full name with spaces, show with email
+  return authorEmail ? `${authorName} (${authorEmail})` : authorName;
+}
+
+/**
+ * Extract PR number from a commit message
+ * Looks for patterns like "#1234" or "pull request #1234"
+ *
+ * @param {string} message - Commit message
+ * @returns {string|null} - PR number (e.g., "1234") or null if not found
+ */
+function extractPRNumber(message) {
+  if (!message) {
+    return null;
+  }
+
+  const match = message.match(/#(\d+)/);
+
+  return match ? match[1] : null;
+}
+
+/**
+ * Check if a commit is a PR merge commit
+ * PR merge commits have messages like "Merge pull request #XXX from ..."
+ *
+ * @param {Object} commit - Commit object with message property
+ * @returns {boolean} - True if commit is a PR merge commit
+ */
+function isPRMergeCommit(commit) {
+  if (!commit?.message) {
+    return false;
+  }
+
+  return /^Merge pull request #\d+ from /i.test(commit.message);
+}
+
+/**
+ * Check if a commit is a dev-to-master merge commit
+ * These are specifically "Merge pull request #XXX from .../dev" commits
+ * which represent previous releases when doing dev -> master merges.
+ *
+ * @param {Object} commit - Commit object with message property
+ * @returns {boolean} - True if commit is a dev-to-master merge
+ */
+function isDevToMasterMerge(commit) {
+  if (!commit?.message) {
+    return false;
+  }
+
+  // Match "Merge pull request #XXX from org/dev" or "Merge pull request #XXX from InjectiveLabs/dev"
+  return /^Merge pull request #\d+ from [^/]+\/dev$/i.test(commit.message);
+}
+
+/**
+ * Check if a commit is a branch merge commit (e.g., "Merge branch 'dev' into master")
+ *
+ * @param {Object} commit - Commit object with message property
+ * @returns {boolean} - True if commit is a branch merge commit
+ */
+function isBranchMergeCommit(commit) {
+  if (!commit?.message) {
+    return false;
+  }
+
+  return /^Merge branch ['"]?\w+['"]? into /i.test(commit.message);
+}
+
+/**
+ * Filter commits to exclude old dev-to-master merge commits.
+ *
+ * Context: This is used for release notes when merging dev -> master.
+ * We want to keep:
+ * - The first dev-to-master merge commit (the current PR being merged)
+ * - All feature branch merge commits (e.g., "Merge pull request #XXX from org/feat/something")
+ * - All non-merge commits (actual feature/fix commits)
+ * - All branch merge commits (e.g., "Merge branch 'dev' into feat/something")
+ *
+ * We filter out:
+ * - Old "Merge pull request #XXX from org/dev" commits (previous releases)
+ *
+ * @param {Array<Object>} commits - Array of commit objects
+ * @returns {Array<Object>} - Filtered commits
+ */
+function filterOldMergeCommits(commits) {
+  if (!commits || commits.length === 0) {
+    return [];
+  }
+
+  let foundFirstDevMerge = false;
+
+  return commits.filter((commit) => {
+    // Only filter dev-to-master merges, keep everything else
+    if (!isDevToMasterMerge(commit)) {
+      return true;
+    }
+
+    // Keep the first dev-to-master merge (current PR)
+    if (!foundFirstDevMerge) {
+      foundFirstDevMerge = true;
+
+      return true;
+    }
+
+    // Filter out subsequent dev-to-master merges (old releases)
+    return false;
+  });
+}
+
+/**
+ * Format a single commit as a markdown list item for release notes
+ *
+ * @param {Object} commit - Commit information
+ * @param {string} commit.hash - Full commit hash
+ * @param {string} commit.message - Commit message
+ * @param {string} commit.authorName - Author name
+ * @param {string} commit.authorEmail - Author email
+ * @param {string} repoUrl - Repository URL (e.g., "https://github.com/org/repo")
+ * @returns {string} - Formatted markdown line
+ */
+function formatCommitLine(commit, repoUrl) {
+  const shortHash = commit.hash.substring(0, 7);
+  const escapedMessage = escapeCommitMessage(commit.message);
+  const author = formatGitAuthor(commit.authorName, commit.authorEmail);
+
+  // Create clickable commit link
+  const commitLink = `[${shortHash}](${repoUrl}/commit/${commit.hash})`;
+
+  // Check for PR number in message
+  const prNumber = extractPRNumber(commit.message);
+  const prInfo = prNumber ? ` in [#${prNumber}](${repoUrl}/pull/${prNumber})` : '';
+
+  return `- ${commitLink} - ${escapedMessage} by ${author}${prInfo}`;
+}
+
+/**
+ * Format multiple commits as release notes
+ * Filters out old merge commits from branch history to only show relevant changes
+ *
+ * @param {Array<Object>} commits - Array of commit objects
+ * @param {string} repoUrl - Repository URL
+ * @returns {string} - Formatted release notes or "No new commits"
+ */
+function formatReleaseNotes(commits, repoUrl) {
+  if (!commits || commits.length === 0) {
+    return 'No new commits';
+  }
+
+  // Filter out old merge commits from dev branch history
+  const filteredCommits = filterOldMergeCommits(commits);
+
+  if (filteredCommits.length === 0) {
+    return 'No new commits';
+  }
+
+  return filteredCommits.map((commit) => formatCommitLine(commit, repoUrl)).join('\n');
+}
+
 ;// CONCATENATED MODULE: external "node:buffer"
 const external_node_buffer_namespaceObject = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("node:buffer");
 // EXTERNAL MODULE: ../shared/node_modules/@kwsites/file-exists/dist/index.js
@@ -33676,7 +33895,7 @@ var esm_default = (/* unused pure expression or super */ null && (gitInstanceFac
 
 /**
  * Create a simple-git instance
- * 
+ *
  * @param {string} baseDir - Base directory for git operations (defaults to cwd)
  * @returns {SimpleGit} - simple-git instance
  */
@@ -33686,7 +33905,7 @@ function createGit(baseDir = process.cwd()) {
 
 /**
  * Get the commit date (Unix timestamp) for a given tag or ref
- * 
+ *
  * @param {SimpleGit} git - simple-git instance
  * @param {string} ref - Git reference (tag, branch, or commit)
  * @returns {Promise<number>} - Unix timestamp
@@ -33698,17 +33917,17 @@ async function getCommitDate(git, ref) {
     maxCount: 1,
     format: { timestamp: '%ct' },
   });
-  
+
   if (!log.latest) {
     throw new Error(`Could not get commit date for ref: ${ref}`);
   }
-  
+
   return parseInt(log.latest.timestamp, 10);
 }
 
 /**
  * Check if a git reference exists
- * 
+ *
  * @param {SimpleGit} git - simple-git instance
  * @param {string} ref - Git reference to check
  * @returns {Promise<boolean>} - True if ref exists
@@ -33725,7 +33944,7 @@ async function refExists(git, ref) {
 
 /**
  * Get commits from a branch since a given ref/tag
- * 
+ *
  * @param {SimpleGit} git - simple-git instance
  * @param {string} branch - Branch name
  * @param {string} sinceRef - Reference to start from (e.g., tag name)
@@ -33744,8 +33963,8 @@ async function getCommitsSince(git, branch, sinceRef) {
         authorEmail: '%ae',
       },
     });
-    
-    return log.all.map(commit => ({
+
+    return log.all.map((commit) => ({
       hash: commit.hash,
       timestamp: parseInt(commit.timestamp, 10),
       message: commit.message,
@@ -33762,15 +33981,17 @@ async function getCommitsSince(git, branch, sinceRef) {
 /**
  * Get commits between two refs (exclusive of the 'from' ref)
  * This is useful for generating release notes between tags
- * 
- * @param {SimpleGit} git - simple-git instance  
+ *
+ * @param {SimpleGit} git - simple-git instance
  * @param {string} fromRef - Starting reference (exclusive)
  * @param {string} toRef - Ending reference (inclusive)
+ * @param {Object} options - Additional options
+ * @param {boolean} options.firstParent - Only follow first parent (useful for merge commits)
  * @returns {Promise<Array<Object>>} - Array of commit objects
  */
-async function getCommitsBetween(git, fromRef, toRef) {
+async function getCommitsBetween(git, fromRef, toRef, options = {}) {
   try {
-    const log = await git.log({
+    const logOptions = {
       from: fromRef,
       to: toRef,
       format: {
@@ -33780,9 +34001,18 @@ async function getCommitsBetween(git, fromRef, toRef) {
         authorName: '%an',
         authorEmail: '%ae',
       },
-    });
-    
-    return log.all.map(commit => ({
+    };
+
+    // Add --first-parent flag if requested
+    // This only follows the first parent of merge commits, which gives us
+    // the direct history on the target branch without diving into merged branches
+    if (options.firstParent) {
+      logOptions['--first-parent'] = null;
+    }
+
+    const log = await git.log(logOptions);
+
+    return log.all.map((commit) => ({
       hash: commit.hash,
       timestamp: parseInt(commit.timestamp, 10),
       message: commit.message,
@@ -33797,8 +34027,128 @@ async function getCommitsBetween(git, fromRef, toRef) {
 }
 
 /**
+ * Get commits between two refs, including commits from merged branches.
+ * This finds the merge commit(s) between the refs using --first-parent,
+ * then gets all commits within those merges.
+ *
+ * This is the correct way to get release notes when tags may be on
+ * different branches than the target.
+ *
+ * @param {SimpleGit} git - simple-git instance
+ * @param {string} fromRef - Starting reference (exclusive)
+ * @param {string} toRef - Ending reference (inclusive)
+ * @returns {Promise<Array<Object>>} - Array of commit objects
+ */
+async function getCommitsBetweenWithMerges(git, fromRef, toRef) {
+  try {
+    // First, get the merge commits on the main branch history
+    const mergeCommits = await getCommitsBetween(git, fromRef, toRef, { firstParent: true });
+
+    if (mergeCommits.length === 0) {
+      return [];
+    }
+
+    // For each merge commit that is a "Merge pull request" commit,
+    // we need to get the commits that were merged
+    const allCommits = [];
+    const seenHashes = new Set();
+
+    for (const commit of mergeCommits) {
+      // Add the merge commit itself
+      if (!seenHashes.has(commit.hash)) {
+        allCommits.push(commit);
+        seenHashes.add(commit.hash);
+      }
+
+      // If this is a merge commit, get the commits from the merged branch
+      if (commit.message.startsWith('Merge pull request')) {
+        try {
+          // Get the commits that were merged (second parent's history)
+          // This uses the ^1..^2 range which gets commits reachable from
+          // the second parent but not from the first parent
+          const mergedCommits = await git.raw([
+            'log',
+            '--pretty=format:%H|%ct|%s|%an|%ae',
+            `${commit.hash}^1..${commit.hash}^2`,
+          ]);
+
+          if (mergedCommits && mergedCommits.trim()) {
+            for (const line of mergedCommits.trim().split('\n')) {
+              const [hash, timestamp, message, authorName, authorEmail] = line.split('|');
+              if (hash && !seenHashes.has(hash)) {
+                allCommits.push({
+                  hash,
+                  timestamp: parseInt(timestamp, 10),
+                  message,
+                  authorName,
+                  authorEmail,
+                });
+                seenHashes.add(hash);
+              }
+            }
+          }
+        } catch {
+          // Ignore errors for individual merge commits
+          // This can happen if the merge commit doesn't have a second parent
+        }
+      }
+    }
+
+    return allCommits;
+  } catch (error) {
+    console.warn(`Warning: git log failed: ${error.message}`);
+
+    return [];
+  }
+}
+
+/**
+ * Find the previous dev-to-master merge commit on the master branch.
+ * This is useful when tags may be placed on commits that are not on the
+ * master branch's first-parent history.
+ *
+ * @param {SimpleGit} git - simple-git instance
+ * @param {string} branch - Branch to search on (default: 'master')
+ * @param {string} currentHead - Current HEAD to start from
+ * @returns {Promise<Object|null>} - The previous merge commit or null
+ */
+async function findPreviousDevMerge(git, _branch = 'master', currentHead = 'HEAD') {
+  try {
+    // Get the first-parent history of the branch
+    const result = await git.raw([
+      'log',
+      '--first-parent',
+      '--pretty=format:%H|%s',
+      '-n',
+      '10', // Look at last 10 merge commits
+      currentHead,
+    ]);
+
+    if (!result || !result.trim()) {
+      return null;
+    }
+
+    const lines = result.trim().split('\n');
+
+    // Skip the first one (current commit) and find the previous dev merge
+    for (let i = 1; i < lines.length; i++) {
+      const [hash, message] = lines[i].split('|');
+      if (message && /^Merge pull request #\d+ from [^/]+\/dev$/i.test(message)) {
+        return { hash, message };
+      }
+    }
+
+    return null;
+  } catch (error) {
+    console.warn(`Warning: findPreviousDevMerge failed: ${error.message}`);
+
+    return null;
+  }
+}
+
+/**
  * Get the latest tag in the repository
- * 
+ *
  * @param {SimpleGit} git - simple-git instance
  * @returns {Promise<string|null>} - Latest tag name or null
  */
@@ -33815,7 +34165,7 @@ async function getLatestTag(git) {
 /**
  * Filter commits to only include those after a specific timestamp
  * Also excludes the first commit (which is typically the tag commit itself)
- * 
+ *
  * @param {Array<Object>} commits - Array of commit objects
  * @param {number} afterTimestamp - Only include commits after this timestamp
  * @returns {Array<Object>} - Filtered commits
@@ -33824,228 +34174,9 @@ function filterCommitsAfter(commits, afterTimestamp) {
   if (!commits || commits.length === 0) {
     return [];
   }
-  
+
   // Skip the first commit (tag commit) and filter by timestamp
-  return commits.slice(1).filter(commit => commit.timestamp > afterTimestamp);
-}
-
-;// CONCATENATED MODULE: ../shared/src/formatting.js
-/**
- * Formatting utilities for GitHub Actions
- * Handles conversion between different markdown formats (GitHub, Slack, etc.)
- */
-
-/**
- * Convert GitHub markdown links to Slack mrkdwn format
- * GitHub format: [text](url)
- * Slack format: <url|text>
- *
- * @param {string} text - Text containing GitHub markdown links
- * @returns {string} - Text with Slack formatted links
- */
-function convertMarkdownToSlack(text) {
-  if (!text) {
-    return '';
-  }
-
-  // Convert [text](url) to <url|text>
-  return text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<$2|$1>');
-}
-
-/**
- * Escape special characters in commit messages for safe output
- *
- * @param {string} message - The commit message to escape
- * @returns {string} - Escaped message
- */
-function escapeCommitMessage(message) {
-  if (!message) {
-    return '';
-  }
-
-  return message.replace(/`/g, '\\`').replace(/"/g, '\\"');
-}
-
-/**
- * Extract GitHub username from git author information
- * Handles various email formats including GitHub noreply emails
- *
- * @param {string} authorName - Git author name
- * @param {string} authorEmail - Git author email
- * @returns {string} - Formatted author string (e.g., "@username" or "Name (email)")
- */
-function formatGitAuthor(authorName, authorEmail) {
-  if (!authorName) {
-    return 'unknown';
-  }
-
-  // GitHub noreply email format: username@users.noreply.github.com
-  // or ID+username@users.noreply.github.com
-  const noReplyMatch = authorEmail?.match(/^(?:\d+\+)?([^@]+)@users\.noreply\.github\.com$/i);
-  if (noReplyMatch) {
-    return `@${noReplyMatch[1]}`;
-  }
-
-  // If author name has no spaces, assume it's a GitHub username
-  if (!authorName.includes(' ')) {
-    return `@${authorName}`;
-  }
-
-  // Full name with spaces, show with email
-  return authorEmail ? `${authorName} (${authorEmail})` : authorName;
-}
-
-/**
- * Extract PR number from a commit message
- * Looks for patterns like "#1234" or "pull request #1234"
- *
- * @param {string} message - Commit message
- * @returns {string|null} - PR number (e.g., "1234") or null if not found
- */
-function extractPRNumber(message) {
-  if (!message) {
-    return null;
-  }
-
-  const match = message.match(/#(\d+)/);
-
-  return match ? match[1] : null;
-}
-
-/**
- * Check if a commit is a PR merge commit
- * PR merge commits have messages like "Merge pull request #XXX from ..."
- *
- * @param {Object} commit - Commit object with message property
- * @returns {boolean} - True if commit is a PR merge commit
- */
-function isPRMergeCommit(commit) {
-  if (!commit?.message) {
-    return false;
-  }
-
-  return /^Merge pull request #\d+ from /i.test(commit.message);
-}
-
-/**
- * Check if a commit is a dev-to-master merge commit
- * These are specifically "Merge pull request #XXX from .../dev" commits
- * which represent previous releases when doing dev -> master merges.
- *
- * @param {Object} commit - Commit object with message property
- * @returns {boolean} - True if commit is a dev-to-master merge
- */
-function isDevToMasterMerge(commit) {
-  if (!commit?.message) {
-    return false;
-  }
-
-  // Match "Merge pull request #XXX from org/dev" or "Merge pull request #XXX from InjectiveLabs/dev"
-  return /^Merge pull request #\d+ from [^/]+\/dev$/i.test(commit.message);
-}
-
-/**
- * Check if a commit is a branch merge commit (e.g., "Merge branch 'dev' into master")
- *
- * @param {Object} commit - Commit object with message property
- * @returns {boolean} - True if commit is a branch merge commit
- */
-function isBranchMergeCommit(commit) {
-  if (!commit?.message) {
-    return false;
-  }
-
-  return /^Merge branch ['"]?\w+['"]? into /i.test(commit.message);
-}
-
-/**
- * Filter commits to exclude old dev-to-master merge commits.
- *
- * Context: This is used for release notes when merging dev -> master.
- * We want to keep:
- * - The first dev-to-master merge commit (the current PR being merged)
- * - All feature branch merge commits (e.g., "Merge pull request #XXX from org/feat/something")
- * - All non-merge commits (actual feature/fix commits)
- * - All branch merge commits (e.g., "Merge branch 'dev' into feat/something")
- *
- * We filter out:
- * - Old "Merge pull request #XXX from org/dev" commits (previous releases)
- *
- * @param {Array<Object>} commits - Array of commit objects
- * @returns {Array<Object>} - Filtered commits
- */
-function filterOldMergeCommits(commits) {
-  if (!commits || commits.length === 0) {
-    return [];
-  }
-
-  let foundFirstDevMerge = false;
-
-  return commits.filter((commit) => {
-    // Only filter dev-to-master merges, keep everything else
-    if (!isDevToMasterMerge(commit)) {
-      return true;
-    }
-
-    // Keep the first dev-to-master merge (current PR)
-    if (!foundFirstDevMerge) {
-      foundFirstDevMerge = true;
-
-      return true;
-    }
-
-    // Filter out subsequent dev-to-master merges (old releases)
-    return false;
-  });
-}
-
-/**
- * Format a single commit as a markdown list item for release notes
- *
- * @param {Object} commit - Commit information
- * @param {string} commit.hash - Full commit hash
- * @param {string} commit.message - Commit message
- * @param {string} commit.authorName - Author name
- * @param {string} commit.authorEmail - Author email
- * @param {string} repoUrl - Repository URL (e.g., "https://github.com/org/repo")
- * @returns {string} - Formatted markdown line
- */
-function formatCommitLine(commit, repoUrl) {
-  const shortHash = commit.hash.substring(0, 7);
-  const escapedMessage = escapeCommitMessage(commit.message);
-  const author = formatGitAuthor(commit.authorName, commit.authorEmail);
-
-  // Create clickable commit link
-  const commitLink = `[${shortHash}](${repoUrl}/commit/${commit.hash})`;
-
-  // Check for PR number in message
-  const prNumber = extractPRNumber(commit.message);
-  const prInfo = prNumber ? ` in [#${prNumber}](${repoUrl}/pull/${prNumber})` : '';
-
-  return `- ${commitLink} - ${escapedMessage} by ${author}${prInfo}`;
-}
-
-/**
- * Format multiple commits as release notes
- * Filters out old merge commits from branch history to only show relevant changes
- *
- * @param {Array<Object>} commits - Array of commit objects
- * @param {string} repoUrl - Repository URL
- * @returns {string} - Formatted release notes or "No new commits"
- */
-function formatReleaseNotes(commits, repoUrl) {
-  if (!commits || commits.length === 0) {
-    return 'No new commits';
-  }
-
-  // Filter out old merge commits from dev branch history
-  const filteredCommits = filterOldMergeCommits(commits);
-
-  if (filteredCommits.length === 0) {
-    return 'No new commits';
-  }
-
-  return filteredCommits.map((commit) => formatCommitLine(commit, repoUrl)).join('\n');
+  return commits.slice(1).filter((commit) => commit.timestamp > afterTimestamp);
 }
 
 ;// CONCATENATED MODULE: ./src/release-notes.js
@@ -34059,7 +34190,12 @@ function formatReleaseNotes(commits, repoUrl) {
 
 /**
  * Generate release notes between a previous tag and a branch
- * 
+ *
+ * Uses --first-parent to follow the main branch history, then expands
+ * merge commits to show the commits that were merged. This handles the
+ * case where tags may be placed on commits that are not on the main
+ * branch's direct history.
+ *
  * @param {Object} options
  * @param {string} options.previousTag - The previous tag to compare against
  * @param {string} options.repoUrl - Repository URL for creating links
@@ -34067,24 +34203,30 @@ function formatReleaseNotes(commits, repoUrl) {
  * @param {string} options.baseDir - Git repository base directory
  * @returns {Promise<Object>} - { releaseNotes, newVersion, commits }
  */
-async function generateReleaseNotes({ previousTag, repoUrl, branch = 'master', baseDir = process.cwd() }) {
+async function generateReleaseNotes({
+  previousTag,
+  repoUrl,
+  branch = 'master',
+  baseDir = process.cwd(),
+}) {
   const git = createGit(baseDir);
-  
+
   // Validate that the previous tag exists
   const tagExists = await refExists(git, previousTag);
   if (!tagExists) {
     throw new Error(`Tag '${previousTag}' does not exist`);
   }
-  
-  // Get commits between the tag and the branch
-  const commits = await getCommitsBetween(git, previousTag, branch);
-  
+
+  // Get commits between the tag and the branch using first-parent
+  // This correctly handles the case where the tag is on a diverged commit
+  const commits = await getCommitsBetweenWithMerges(git, previousTag, branch);
+
   // Format the release notes
   const releaseNotes = formatReleaseNotes(commits, repoUrl);
-  
+
   // Calculate new version
   const newVersion = incrementPatch(previousTag);
-  
+
   return {
     releaseNotes,
     newVersion,
@@ -34096,7 +34238,7 @@ async function generateReleaseNotes({ previousTag, repoUrl, branch = 'master', b
 /**
  * Compute the Bugsnag app version
  * Returns the new version if there are commits, otherwise returns the previous tag
- * 
+ *
  * @param {string} newVersion - The incremented version
  * @param {string} previousTag - The previous tag
  * @param {boolean} hasNewCommits - Whether there are new commits

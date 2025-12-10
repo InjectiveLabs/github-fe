@@ -566,3 +566,158 @@ export const PR_2322_EXTENDED = [
     authorEmail: 'thomas.leera@gmail.com',
   },
 ];
+
+/**
+ * Real commit data from PR #2325 (InjectiveLabs/injective-helix)
+ * This is the buggy output that was generated - it shows 16 commits
+ * when only 2 commits were actually in the PR.
+ *
+ * The PR #2325 was a dev -> master merge with only these commits:
+ * - 2f0300e - chore: add mv whitelist address
+ * - 1e2d3f2 - Merge pull request #2324 from InjectiveLabs/chore/add-mv-whitelist-addresses
+ *
+ * But the release notes showed 16 commits including old feature branches
+ * that were already deployed in previous releases.
+ *
+ * Root cause: The tag v1.17.15 was placed on a commit that diverged from
+ * the main history, causing git log to return many unrelated commits.
+ */
+export const PR_2325_BUGGY_OUTPUT = [
+  // Current dev -> master merge - KEEP (first dev merge)
+  {
+    hash: '5bf18db4dd6e1677cd42f42c137593d086d89164',
+    message: 'Merge pull request #2325 from InjectiveLabs/dev',
+    authorName: 'ThomasRalee',
+    authorEmail: 'ThomasRalee@users.noreply.github.com',
+  },
+  // Feature branch merge into dev - KEEP (not a dev merge)
+  {
+    hash: '1e2d3f21cfb20dcfb529acd135fb963c21bb2e4e',
+    message: 'Merge pull request #2324 from InjectiveLabs/chore/add-mv-whitelist-addresses',
+    authorName: 'ThomasRalee',
+    authorEmail: 'ThomasRalee@users.noreply.github.com',
+  },
+  // Actual commit - KEEP
+  {
+    hash: '2f0300e1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7',
+    message: 'chore: add mv whitelist address',
+    authorName: '0xA1337',
+    authorEmail: 'arthur@injectivelabs.org',
+  },
+  // OLD feature branch merge (from previous release) - should be filtered
+  {
+    hash: '2909452d562ed74c45e5f7a4abd08d84775104c1',
+    message: 'Merge pull request #2213 from InjectiveLabs/fix/volume-no-spacing',
+    authorName: 'ThomasRalee',
+    authorEmail: 'ThomasRalee@users.noreply.github.com',
+  },
+  // OLD commit (from previous release) - should be filtered
+  {
+    hash: 'eac4f2c7e25cb60c3f87f8bb42b8d6865e58509a',
+    message: 'fix: add missing spacing',
+    authorName: '0xA1337',
+    authorEmail: 'arthur@injectivelabs.org',
+  },
+  // OLD feature branch merge (from previous release) - should be filtered
+  {
+    hash: '5c080eba546b3199b5b0158d86d578482174c3bf',
+    message: 'Merge pull request #2156 from InjectiveLabs/feat/pnpm-build',
+    authorName: 'ThomasRalee',
+    authorEmail: 'ThomasRalee@users.noreply.github.com',
+  },
+  // OLD branch merge (from previous release) - should be filtered
+  {
+    hash: '3af2870b7eeffdd30229177eda84580a82a83eff',
+    message: "Merge branch 'dev' into feat/pnpm-build",
+    authorName: 'thomasRalee',
+    authorEmail: 'thomas.leera@gmail.com',
+  },
+  // OLD commit - should be filtered
+  {
+    hash: '39816fda1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e',
+    message: 'chore: package bump',
+    authorName: 'thomasRalee',
+    authorEmail: 'thomas.leera@gmail.com',
+  },
+  // OLD commit - should be filtered
+  {
+    hash: '79b6770a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e',
+    message: 'chore: attempt fix',
+    authorName: 'thomasRalee',
+    authorEmail: 'thomas.leera@gmail.com',
+  },
+  // OLD commit - should be filtered
+  {
+    hash: '3587278b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f',
+    message: 'chore: package bump',
+    authorName: 'thomasRalee',
+    authorEmail: 'thomas.leera@gmail.com',
+  },
+  // OLD feature branch merge - should be filtered
+  {
+    hash: 'b0522a0c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a',
+    message: 'Merge pull request #2173 from InjectiveLabs/chore/tk-indexeddb',
+    authorName: 'ThomasRalee',
+    authorEmail: 'ThomasRalee@users.noreply.github.com',
+  },
+  // OLD commit - should be filtered
+  {
+    hash: '483d15f5c9f9112c2b9506edd8c2568141a535b8',
+    message: 'chore: remove @injectivelabs/stylelint-config dependency',
+    authorName: 'thomasRalee',
+    authorEmail: 'thomas.leera@gmail.com',
+  },
+  // OLD commit - should be filtered
+  {
+    hash: '6e75c94989050025f31b470d64aae8b93c67ed9a',
+    message: 'feat: pnpm build',
+    authorName: 'thomasRalee',
+    authorEmail: 'thomas.leera@gmail.com',
+  },
+  // OLD commit - should be filtered
+  {
+    hash: 'fc98ec6ef869aa504cd19508bc76c2f6c05abfd9',
+    message: 'chore: font files refactor + asset optimization',
+    authorName: 'frederick-88',
+    authorEmail: 'frederickfd88@gmail.com',
+  },
+  // OLD commit - should be filtered
+  {
+    hash: '4d541052894efbdeed2bacf722fa365d587cb601',
+    message: 'chore: migrate turnkey to indexedDb',
+    authorName: 'billyjacoby',
+    authorEmail: 'billyjacoby@users.noreply.github.com',
+  },
+  // OLD commit - should be filtered
+  {
+    hash: '42ed70a6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2',
+    message: 'chore: package bump',
+    authorName: 'frederick-88',
+    authorEmail: 'frederickfd88@gmail.com',
+  },
+];
+
+/**
+ * Expected output for PR #2325 - only the commits that were actually
+ * part of this release (the 2 commits in the dev -> master PR)
+ */
+export const PR_2325_EXPECTED = [
+  {
+    hash: '5bf18db4dd6e1677cd42f42c137593d086d89164',
+    message: 'Merge pull request #2325 from InjectiveLabs/dev',
+    authorName: 'ThomasRalee',
+    authorEmail: 'ThomasRalee@users.noreply.github.com',
+  },
+  {
+    hash: '1e2d3f21cfb20dcfb529acd135fb963c21bb2e4e',
+    message: 'Merge pull request #2324 from InjectiveLabs/chore/add-mv-whitelist-addresses',
+    authorName: 'ThomasRalee',
+    authorEmail: 'ThomasRalee@users.noreply.github.com',
+  },
+  {
+    hash: '2f0300e1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7',
+    message: 'chore: add mv whitelist address',
+    authorName: '0xA1337',
+    authorEmail: 'arthur@injectivelabs.org',
+  },
+];
