@@ -146,6 +146,11 @@ export async function getCommitsBetween(git, fromRef, toRef, options = {}) {
  * This is the correct way to get release notes when tags may be on
  * different branches than the target.
  *
+ * IMPORTANT: When expanding merge commits, we filter commits to only include
+ * those with timestamps AFTER the fromRef. This prevents old commits from
+ * previous releases from being included when the dev branch has a longer
+ * history than what's being released.
+ *
  * @param {SimpleGit} git - simple-git instance
  * @param {string} fromRef - Starting reference (exclusive)
  * @param {string} toRef - Ending reference (inclusive)
@@ -153,6 +158,9 @@ export async function getCommitsBetween(git, fromRef, toRef, options = {}) {
  */
 export async function getCommitsBetweenWithMerges(git, fromRef, toRef) {
   try {
+    // Get the timestamp of the fromRef (previous tag) to filter old commits
+    const fromRefTimestamp = await getCommitDate(git, fromRef);
+
     // First, get the merge commits on the main branch history
     const mergeCommits = await getCommitsBetween(git, fromRef, toRef, { firstParent: true });
 
@@ -166,8 +174,8 @@ export async function getCommitsBetweenWithMerges(git, fromRef, toRef) {
     const seenHashes = new Set();
 
     for (const commit of mergeCommits) {
-      // Add the merge commit itself
-      if (!seenHashes.has(commit.hash)) {
+      // Add the merge commit itself (if it's after the fromRef timestamp)
+      if (!seenHashes.has(commit.hash) && commit.timestamp > fromRefTimestamp) {
         allCommits.push(commit);
         seenHashes.add(commit.hash);
       }
@@ -187,10 +195,14 @@ export async function getCommitsBetweenWithMerges(git, fromRef, toRef) {
           if (mergedCommits && mergedCommits.trim()) {
             for (const line of mergedCommits.trim().split('\n')) {
               const [hash, timestamp, message, authorName, authorEmail] = line.split('|');
-              if (hash && !seenHashes.has(hash)) {
+              const commitTimestamp = parseInt(timestamp, 10);
+
+              // Only include commits that are AFTER the fromRef timestamp
+              // This filters out old commits from previous releases
+              if (hash && !seenHashes.has(hash) && commitTimestamp > fromRefTimestamp) {
                 allCommits.push({
                   hash,
-                  timestamp: parseInt(timestamp, 10),
+                  timestamp: commitTimestamp,
                   message,
                   authorName,
                   authorEmail,
@@ -272,21 +284,4 @@ export async function getLatestTag(git) {
   } catch {
     return null;
   }
-}
-
-/**
- * Filter commits to only include those after a specific timestamp
- * Also excludes the first commit (which is typically the tag commit itself)
- *
- * @param {Array<Object>} commits - Array of commit objects
- * @param {number} afterTimestamp - Only include commits after this timestamp
- * @returns {Array<Object>} - Filtered commits
- */
-export function filterCommitsAfter(commits, afterTimestamp) {
-  if (!commits || commits.length === 0) {
-    return [];
-  }
-
-  // Skip the first commit (tag commit) and filter by timestamp
-  return commits.slice(1).filter((commit) => commit.timestamp > afterTimestamp);
 }
