@@ -16,11 +16,16 @@ describe('git', () => {
       const { tagTimestamp = 1700000000, mergeCommits = [], expandedCommits = {} } = options;
 
       return {
-        log: vi.fn().mockImplementation((opts) => {
-          // Mock getCommitDate call (from: ref, to: ref, maxCount: 1)
-          if (opts.maxCount === 1 && opts.from === opts.to) {
+        log: vi.fn().mockImplementation((args) => {
+          // Mock getCommitDate call - git.log([ref, '-1', '--format=%ct'])
+          if (
+            Array.isArray(args) &&
+            args.length === 3 &&
+            args[1] === '-1' &&
+            args[2] === '--format=%ct'
+          ) {
             return Promise.resolve({
-              latest: { timestamp: String(tagTimestamp) },
+              latest: { hash: String(tagTimestamp) },
             });
           }
 
@@ -252,7 +257,7 @@ describe('git', () => {
     it('should return timestamp for valid ref', async () => {
       const mockGit = {
         log: vi.fn().mockResolvedValue({
-          latest: { timestamp: '1700000000' },
+          latest: { hash: '1700000000' },
         }),
       };
 

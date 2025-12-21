@@ -23,18 +23,13 @@ export function createGit(baseDir = process.cwd()) {
  * @returns {Promise<number>} - Unix timestamp
  */
 export async function getCommitDate(git, ref) {
-  const log = await git.log({
-    from: ref,
-    to: ref,
-    maxCount: 1,
-    format: { timestamp: '%ct' },
-  });
+  const log = await git.log([ref, '-1', '--format=%ct']);
 
-  if (!log.latest) {
+  if (!log.latest || !log.latest.hash) {
     throw new Error(`Could not get commit date for ref: ${ref}`);
   }
 
-  return parseInt(log.latest.timestamp, 10);
+  return parseInt(log.latest.hash, 10);
 }
 
 /**
