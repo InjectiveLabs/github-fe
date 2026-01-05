@@ -27655,7 +27655,7 @@ function formatReleaseNotes(commits, repoUrl) {
 
 /**
  * Build the Slack message payload for a production deployment
- * 
+ *
  * @param {Object} options
  * @param {string} options.projectName - Name of the project being deployed
  * @param {string} options.releaseNotes - Release notes (markdown formatted)
@@ -27666,17 +27666,17 @@ function formatReleaseNotes(commits, repoUrl) {
 function buildDeploymentPayload({ projectName, releaseNotes, repoUrl, runId }) {
   const runUrl = `${repoUrl}/actions/runs/${runId}`;
   const hasNewCommits = releaseNotes && releaseNotes !== 'No new commits';
-  
+
   if (hasNewCommits) {
     const slackFormattedNotes = convertMarkdownToSlack(releaseNotes);
-    
+
     const text = [
-      `<!here> :rocket: ${projectName} deployed to Mainnet!`,
+      `:rocket: ${projectName} deployed to Mainnet!`,
       `View the deployment results on Github: <${runUrl}>.`,
       'The commits deployed are:',
       slackFormattedNotes,
     ].join('\n');
-    
+
     return {
       text,
       attachments: [
@@ -27688,7 +27688,7 @@ function buildDeploymentPayload({ projectName, releaseNotes, repoUrl, runId }) {
     };
   } else {
     return {
-      text: `<!here> :rocket: ${projectName} Rebuilt on Mainnet! Good guys, close your eyes! :hammer_and_wrench::smile:`,
+      text: `:rocket: ${projectName} Rebuilt on Mainnet! Good guys, close your eyes! :hammer_and_wrench::smile:`,
       attachments: [
         {
           text: `View the deployment results on Github: <${runUrl}>.`,
@@ -27701,7 +27701,7 @@ function buildDeploymentPayload({ projectName, releaseNotes, repoUrl, runId }) {
 
 /**
  * Validate that the URL is a valid Slack webhook URL
- * 
+ *
  * @param {string} url - URL to validate
  * @returns {boolean} - true if valid Slack webhook URL
  */
@@ -27717,7 +27717,7 @@ function isValidSlackWebhookUrl(url) {
 
 /**
  * Send a message to Slack via webhook
- * 
+ *
  * @param {string} webhookUrl - Slack webhook URL
  * @param {Object} payload - Message payload
  * @returns {Promise<void>}
@@ -27726,7 +27726,7 @@ async function sendSlackNotification(webhookUrl, payload) {
   if (!isValidSlackWebhookUrl(webhookUrl)) {
     throw new Error('Invalid Slack webhook URL. Must be an HTTPS URL from hooks.slack.com');
   }
-  
+
   const response = await fetch(webhookUrl, {
     method: 'POST',
     headers: {
@@ -27734,7 +27734,7 @@ async function sendSlackNotification(webhookUrl, payload) {
     },
     body: JSON.stringify(payload),
   });
-  
+
   if (!response.ok) {
     const text = await response.text();
     throw new Error(`Slack webhook failed: ${response.status} ${text}`);
