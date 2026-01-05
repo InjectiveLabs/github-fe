@@ -20,7 +20,7 @@ jobs:
         uses: ./.github/actions/prod-deployment-notification
         with:
           webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
-          project-name: "MyApp"
+          project-name: 'MyApp'
           release-notes: ${{ steps.generate-release-notes.outputs.notes }}
 ```
 
@@ -61,7 +61,7 @@ jobs:
         uses: ./.github/actions/prod-deployment-notification
         with:
           webhook-url: ${{ secrets.PRODUCTION_CHANNEL_WEBHOOK_URL }}
-          project-name: "Helix"
+          project-name: 'Helix'
           release-notes: ${{ needs.mainnet-release.outputs.release_notes }}
 ```
 
@@ -70,7 +70,7 @@ jobs:
 ### Deployment with New Commits
 
 ```
-<!here> 🚀 Helix deployed to Mainnet!
+🚀 Helix deployed to Mainnet!
 View the deployment results on Github: https://github.com/InjectiveLabs/injective-helix/actions/runs/1234567890.
 The commits deployed are:
 - feat: Add new feature
@@ -80,7 +80,7 @@ The commits deployed are:
 ### Rebuild without New Commits
 
 ```
-<!here> 🚀 Helix Rebuilt on Mainnet! Good guys, close your eyes! 🛠️😄.
+🚀 Helix Rebuilt on Mainnet! Good guys, close your eyes! 🛠️😄.
 ```
 
 ## Requirements
