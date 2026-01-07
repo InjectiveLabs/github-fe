@@ -1,27 +1,27 @@
-name: "Package bump"
-description: "Package bump"
+name: 'Package bump'
+description: 'Package bump'
 
 inputs:
   gh_token:
-    description: "GitHub token"
+    description: 'GitHub token'
     required: true
   folder_path:
-    description: "Folder path"
+    description: 'Folder path'
     required: false
   repository_url:
-    description: "Repository url"
+    description: 'Repository url'
     required: true
   repository_branch:
-    description: "repository branch"
+    description: 'repository branch'
     required: false
-    default: "dev"
+    default: 'dev'
   propagation_delay:
-    description: "Seconds to wait for npm package propagation before installing"
+    description: 'Seconds to wait for npm package propagation before installing'
     required: false
-    default: "30"
+    default: '30'
 
 runs:
-  using: "composite"
+  using: 'composite'
   steps:
     - name: Wait for npm propagation
       shell: bash
@@ -47,7 +47,7 @@ runs:
     - name: Setup pnpm
       uses: pnpm/action-setup@v4
       with:
-        version: "10"
+        version: '10'
 
     - name: Install dependencies
       shell: bash
@@ -58,6 +58,23 @@ runs:
           cd tmp
         fi
         pnpm install
+
+    - name: Prepare Nuxt
+      shell: bash
+      run: |
+        if [ -n "${{ inputs.folder_path }}" ]; then
+          cd "tmp/${{ inputs.folder_path }}"
+        else
+          cd tmp
+        fi
+
+        # Only run nuxi prepare if this is a Nuxt project
+        if [ -f "nuxt.config.ts" ] || [ -f "nuxt.config.js" ]; then
+          echo "Nuxt config found, running nuxi prepare..."
+          npx nuxi prepare
+        else
+          echo "No Nuxt config found, skipping nuxi prepare"
+        fi
 
     - name: Commit changes
       shell: bash
