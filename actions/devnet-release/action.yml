@@ -1,0 +1,47 @@
+name: "Devnet Release"
+description: "SSH into devnet, pull latest from dev branch, and rebuild the app"
+
+inputs:
+  source_dir:
+    description: "Absolute path to the project directory on the devnet server"
+    required: true
+  ssh_host:
+    description: "Devnet SSH host"
+    required: true
+  ssh_user:
+    description: "Devnet SSH user"
+    required: true
+  ssh_key:
+    description: "Devnet SSH private key"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Configure SSH
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ inputs.ssh_key }}" > ~/.ssh/devnet.key
+        chmod 600 ~/.ssh/devnet.key
+        cat >>~/.ssh/config <<EOF
+        Host devnet
+          HostName ${{ inputs.ssh_host }}
+          User ${{ inputs.ssh_user }}
+          IdentityFile ~/.ssh/devnet.key
+          StrictHostKeyChecking no
+        EOF
+      shell: bash
+
+    - name: Check out the source
+      run: ssh devnet 'cd '"${{ inputs.source_dir }}"' && git stash && git stash clear && git pull'
+      shell: bash
+
+    - name: Flush pnpm cache
+      run: ssh devnet 'source $HOME/.nvm/nvm.sh && cd '"${{ inputs.source_dir }}"' && pnpm store prune && rm -rf node_modules && rm pnpm-lock.yaml'
+      shell: bash
+
+    - name: Build app
+      run: ssh devnet 'source $HOME/.nvm/nvm.sh && cd '"${{ inputs.source_dir }}"' && pnpm install && pnpm clean-up && pnpm generate'
+      shell: bash
+      env:
+        NODE_OPTIONS: "--max_old_space_size=15360"
