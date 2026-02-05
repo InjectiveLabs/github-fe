@@ -1,6 +1,5 @@
 import * as core from '@actions/core';
 import { getBranchName } from './git.js';
-import { generateJiraLinks, extractJiraTickets } from './jira.js';
 import {
   postMessage,
   addMessageId,
@@ -29,14 +28,7 @@ async function run() {
     core.setOutput('channel_name', inputs.slackChannel);
     core.info(`Branch: ${branchName}`);
 
-    // Step 2: Extract Jira tickets
-    const jiraTickets = await extractJiraTickets();
-    const jiraLinks = generateJiraLinks(jiraTickets);
-    core.setOutput('jira_tickets', jiraTickets.join(', '));
-    core.setOutput('jira_links', jiraLinks);
-    core.info(`Jira tickets: ${jiraTickets.join(', ') || 'none'}`);
-
-    // Step 3: Search for existing Slack message
+    // Step 2: Search for existing Slack message
     const existingMessage = await searchExistingMessage({
       userToken: inputs.slackUserToken,
       channel: inputs.slackChannel,
@@ -53,7 +45,6 @@ async function run() {
       core.info(`Found existing message: ${existingMessage.ts}`);
       core.setOutput('existing_message_ts', existingMessage.ts);
       core.setOutput('existing_channel_id', existingMessage.channelId);
-      core.setOutput('existing_jira_tickets', existingMessage.jiraTickets.join(','));
 
       // Update main message with latest staging URL
       await updateMessage({
@@ -62,8 +53,6 @@ async function run() {
         messageTs: existingMessage.ts,
         currentText: existingMessage.text,
         stagingUrl: inputs.stagingUrl,
-        newJiraTickets: jiraTickets,
-        existingJiraTickets: existingMessage.jiraTickets,
       });
 
       // Post thread reply
@@ -83,7 +72,6 @@ async function run() {
       core.info('Creating new message');
       core.setOutput('existing_message_ts', '');
       core.setOutput('existing_channel_id', '');
-      core.setOutput('existing_jira_tickets', '');
 
       const result = await postMessage({
         botToken: inputs.slackBotToken,
@@ -94,7 +82,6 @@ async function run() {
         description: inputs.description,
         stagingUrl: inputs.stagingUrl,
         author: process.env.GITHUB_ACTOR,
-        jiraLinks,
       });
 
       messageTs = result.ts;

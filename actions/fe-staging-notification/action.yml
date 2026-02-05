@@ -1,5 +1,5 @@
 name: "Deployment Notification"
-description: "Extract Jira tickets and send Slack notifications for deployments"
+description: "Send Slack notifications for deployments"
 
 inputs:
   repo:
@@ -32,18 +32,12 @@ inputs:
 outputs:
   branch_name:
     description: "The branch name that was deployed"
-  jira_tickets:
-    description: "Comma-separated list of Jira tickets found"
-  jira_links:
-    description: "Formatted Jira links for Slack"
   message_found:
     description: "Whether an existing Slack message was found"
   existing_message_ts:
     description: "Timestamp of existing Slack message if found"
   existing_channel_id:
     description: "Channel ID of existing Slack message if found"
-  existing_jira_tickets:
-    description: "Jira tickets from existing Slack message"
   channel_name:
     description: "Slack channel name used"
   message_ts:

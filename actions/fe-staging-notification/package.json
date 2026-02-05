@@ -1,7 +1,7 @@
 {
   "name": "fe-staging-notification",
   "version": "1.0.0",
-  "description": "Extract Jira tickets and send Slack notifications for deployments",
+  "description": "Send Slack notifications for deployments",
   "main": "src/index.js",
   "type": "module",
   "scripts": {
@@ -21,8 +21,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@actions/core": "^1.11.1",
-    "@actions/exec": "^1.1.1"
+    "@actions/core": "^1.11.1"
   },
   "devDependencies": {
     "@vercel/ncc": "^0.38.4",

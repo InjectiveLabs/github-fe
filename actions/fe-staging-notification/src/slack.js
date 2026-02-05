@@ -1,6 +1,5 @@
 import https from 'https';
 import * as core from '@actions/core';
-import { JIRA_PATTERN, JIRA_BASE_URL } from './jira.js';
 
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 2000;
@@ -130,34 +129,11 @@ export async function searchExistingMessage({ userToken, channel, repo, branchNa
 
   const match = response.messages.matches[0];
 
-  // Fetch thread to get all Jira tickets
-  const threadResponse = await slackRequest(
-    'GET',
-    `conversations.replies?channel=${match.channel.id}&ts=${match.ts}`,
-    userToken
-  );
-
-  let allJiraTickets = [];
-  if (threadResponse.ok && threadResponse.messages) {
-    const allText = threadResponse.messages.map((m) => m.text).join(' ');
-    allJiraTickets = extractJiraFromText(allText);
-  }
-
   return {
     ts: match.ts,
     channelId: match.channel.id,
-    text: threadResponse.messages?.[0]?.text || match.text,
-    jiraTickets: allJiraTickets,
+    text: match.text,
   };
-}
-
-/**
- * Extract Jira tickets from text
- */
-export function extractJiraFromText(text) {
-  const matches = text.match(JIRA_PATTERN) || [];
-
-  return [...new Set(matches.map((t) => t.toUpperCase()))];
 }
 
 /**
@@ -169,8 +145,6 @@ export async function updateMessage({
   messageTs,
   currentText,
   stagingUrl,
-  newJiraTickets,
-  existingJiraTickets,
 }) {
   let updatedText = currentText;
 
@@ -183,26 +157,6 @@ export async function updateMessage({
     );
     // Add new staging URL
     updatedText = updatedText.trim() + `\n*Staging URL:* <${stagingUrl}|${stagingUrl}>`;
-  }
-
-  // Add new Jira tickets
-  const ticketsToAdd = newJiraTickets.filter(
-    (t) => !existingJiraTickets.includes(t)
-  );
-
-  if (ticketsToAdd.length > 0) {
-    const newLinks = ticketsToAdd
-      .map((t) => `<${JIRA_BASE_URL}/${t}|${t}>`)
-      .join(', ');
-
-    if (updatedText.includes('Jira tickets:')) {
-      updatedText = updatedText.replace(
-        /(\*Jira tickets:\* [^\n]*)/,
-        `$1, ${newLinks}`
-      );
-    } else {
-      updatedText += `\n*Jira tickets:* ${newLinks}`;
-    }
   }
 
   return slackRequest('POST', 'chat.update', botToken, {
@@ -224,17 +178,12 @@ export async function postMessage({
   description,
   stagingUrl,
   author,
-  jiraLinks,
 }) {
   let text = `*${repo}* - Staging Deployment (${network})\n\n`;
   text += `*Branch:* \`${branchName}\`\n`;
   text += `*Description:* ${description}\n`;
   text += `*Staging URL:* <${stagingUrl}|${stagingUrl}>\n`;
   text += `*Author:* ${author}`;
-
-  if (jiraLinks) {
-    text += `\n*Jira tickets:* ${jiraLinks}`;
-  }
 
   const response = await slackRequest('POST', 'chat.postMessage', botToken, {
     channel: `#${channel}`,

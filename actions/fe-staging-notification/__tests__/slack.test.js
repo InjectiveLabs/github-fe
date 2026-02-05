@@ -3,7 +3,6 @@ import {
   sleep,
   slackRequest,
   isRetryableError,
-  extractJiraFromText,
 } from '../src/slack.js';
 
 // Mock https module
@@ -16,44 +15,6 @@ vi.mock('https', () => ({
 import https from 'https';
 
 describe('slack', () => {
-  describe('extractJiraFromText', () => {
-    it('should extract tickets from text', () => {
-      const text = 'Working on IL-1234 and IL-5678';
-      expect(extractJiraFromText(text)).toEqual(['IL-1234', 'IL-5678']);
-    });
-
-    it('should handle lowercase', () => {
-      const text = 'Working on il-1234';
-      expect(extractJiraFromText(text)).toEqual(['IL-1234']);
-    });
-
-    it('should deduplicate', () => {
-      const text = 'IL-1234 and IL-1234 again';
-      expect(extractJiraFromText(text)).toEqual(['IL-1234']);
-    });
-
-    it('should return empty array for no matches', () => {
-      const text = 'No tickets here';
-      expect(extractJiraFromText(text)).toEqual([]);
-    });
-
-    it('should handle empty string', () => {
-      expect(extractJiraFromText('')).toEqual([]);
-    });
-
-    it('should handle Slack link format', () => {
-      const text = 'Jira tickets: <https://injective-labs.atlassian.net/browse/IL-1234|IL-1234>';
-      expect(extractJiraFromText(text)).toEqual(['IL-1234']);
-    });
-
-    it('should extract tickets from multi-line text', () => {
-      const text = `Branch: feat/IL-1234-new-feature
-Description: Working on IL-5678
-Jira tickets: IL-9999`;
-      expect(extractJiraFromText(text)).toEqual(['IL-1234', 'IL-5678', 'IL-9999']);
-    });
-  });
-
   describe('isRetryableError', () => {
     it('should return true for rate_limited', () => {
       expect(isRetryableError('rate_limited')).toBe(true);

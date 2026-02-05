@@ -27472,65 +27472,9 @@ function getBranchName() {
   throw new Error('Could not determine branch name');
 }
 
-// EXTERNAL MODULE: ./node_modules/@actions/exec/lib/exec.js
-var exec = __nccwpck_require__(5236);
-;// CONCATENATED MODULE: ./src/jira.js
-
-
-
-const JIRA_BASE_URL = 'https://injective-labs.atlassian.net/browse';
-const JIRA_PATTERN = /IL-\d{3,5}/gi;
-
-/**
- * Extract Jira tickets from git commit messages
- */
-async function extractJiraTickets() {
-  // Fetch origin/dev for comparison
-  try {
-    await (0,exec.exec)('git', ['fetch', 'origin', 'dev'], { silent: true });
-  } catch (_error) {
-    core.warning('Could not fetch origin/dev, proceeding with local reference');
-  }
-
-  // Get commit messages
-  let commitMessages = '';
-  try {
-    await (0,exec.exec)('git', ['log', 'origin/dev..HEAD', '--oneline'], {
-      silent: true,
-      listeners: {
-        stdout: (data) => {
-          commitMessages += data.toString();
-        },
-      },
-    });
-  } catch (_error) {
-    core.info('No commits found');
-
-    return [];
-  }
-
-  // Extract unique tickets
-  const matches = commitMessages.match(JIRA_PATTERN) || [];
-  const uniqueTickets = [...new Set(matches.map((t) => t.toUpperCase()))];
-
-  return uniqueTickets;
-}
-
-/**
- * Generate Slack-formatted Jira links
- */
-function generateJiraLinks(tickets) {
-  if (!tickets || tickets.length === 0) {
-    return '';
-  }
-
-  return tickets.map((ticket) => `<${JIRA_BASE_URL}/${ticket}|${ticket}>`).join(', ');
-}
-
 // EXTERNAL MODULE: external "https"
 var external_https_ = __nccwpck_require__(5692);
 ;// CONCATENATED MODULE: ./src/slack.js
-
 
 
 
@@ -27662,34 +27606,11 @@ async function searchExistingMessage({ userToken, channel, repo, branchName }) {
 
   const match = response.messages.matches[0];
 
-  // Fetch thread to get all Jira tickets
-  const threadResponse = await slackRequest(
-    'GET',
-    `conversations.replies?channel=${match.channel.id}&ts=${match.ts}`,
-    userToken
-  );
-
-  let allJiraTickets = [];
-  if (threadResponse.ok && threadResponse.messages) {
-    const allText = threadResponse.messages.map((m) => m.text).join(' ');
-    allJiraTickets = extractJiraFromText(allText);
-  }
-
   return {
     ts: match.ts,
     channelId: match.channel.id,
-    text: threadResponse.messages?.[0]?.text || match.text,
-    jiraTickets: allJiraTickets,
+    text: match.text,
   };
-}
-
-/**
- * Extract Jira tickets from text
- */
-function extractJiraFromText(text) {
-  const matches = text.match(JIRA_PATTERN) || [];
-
-  return [...new Set(matches.map((t) => t.toUpperCase()))];
 }
 
 /**
@@ -27701,8 +27622,6 @@ async function updateMessage({
   messageTs,
   currentText,
   stagingUrl,
-  newJiraTickets,
-  existingJiraTickets,
 }) {
   let updatedText = currentText;
 
@@ -27715,26 +27634,6 @@ async function updateMessage({
     );
     // Add new staging URL
     updatedText = updatedText.trim() + `\n*Staging URL:* <${stagingUrl}|${stagingUrl}>`;
-  }
-
-  // Add new Jira tickets
-  const ticketsToAdd = newJiraTickets.filter(
-    (t) => !existingJiraTickets.includes(t)
-  );
-
-  if (ticketsToAdd.length > 0) {
-    const newLinks = ticketsToAdd
-      .map((t) => `<${JIRA_BASE_URL}/${t}|${t}>`)
-      .join(', ');
-
-    if (updatedText.includes('Jira tickets:')) {
-      updatedText = updatedText.replace(
-        /(\*Jira tickets:\* [^\n]*)/,
-        `$1, ${newLinks}`
-      );
-    } else {
-      updatedText += `\n*Jira tickets:* ${newLinks}`;
-    }
   }
 
   return slackRequest('POST', 'chat.update', botToken, {
@@ -27756,17 +27655,12 @@ async function postMessage({
   description,
   stagingUrl,
   author,
-  jiraLinks,
 }) {
   let text = `*${repo}* - Staging Deployment (${network})\n\n`;
   text += `*Branch:* \`${branchName}\`\n`;
   text += `*Description:* ${description}\n`;
   text += `*Staging URL:* <${stagingUrl}|${stagingUrl}>\n`;
   text += `*Author:* ${author}`;
-
-  if (jiraLinks) {
-    text += `\n*Jira tickets:* ${jiraLinks}`;
-  }
 
   const response = await slackRequest('POST', 'chat.postMessage', botToken, {
     channel: `#${channel}`,
@@ -27822,7 +27716,6 @@ async function addMessageId({ botToken, channelId, messageTs, originalText }) {
 
 
 
-
 async function run() {
   try {
     // Get inputs
@@ -27843,14 +27736,7 @@ async function run() {
     core.setOutput('channel_name', inputs.slackChannel);
     core.info(`Branch: ${branchName}`);
 
-    // Step 2: Extract Jira tickets
-    const jiraTickets = await extractJiraTickets();
-    const jiraLinks = generateJiraLinks(jiraTickets);
-    core.setOutput('jira_tickets', jiraTickets.join(', '));
-    core.setOutput('jira_links', jiraLinks);
-    core.info(`Jira tickets: ${jiraTickets.join(', ') || 'none'}`);
-
-    // Step 3: Search for existing Slack message
+    // Step 2: Search for existing Slack message
     const existingMessage = await searchExistingMessage({
       userToken: inputs.slackUserToken,
       channel: inputs.slackChannel,
@@ -27867,7 +27753,6 @@ async function run() {
       core.info(`Found existing message: ${existingMessage.ts}`);
       core.setOutput('existing_message_ts', existingMessage.ts);
       core.setOutput('existing_channel_id', existingMessage.channelId);
-      core.setOutput('existing_jira_tickets', existingMessage.jiraTickets.join(','));
 
       // Update main message with latest staging URL
       await updateMessage({
@@ -27876,8 +27761,6 @@ async function run() {
         messageTs: existingMessage.ts,
         currentText: existingMessage.text,
         stagingUrl: inputs.stagingUrl,
-        newJiraTickets: jiraTickets,
-        existingJiraTickets: existingMessage.jiraTickets,
       });
 
       // Post thread reply
@@ -27897,7 +27780,6 @@ async function run() {
       core.info('Creating new message');
       core.setOutput('existing_message_ts', '');
       core.setOutput('existing_channel_id', '');
-      core.setOutput('existing_jira_tickets', '');
 
       const result = await postMessage({
         botToken: inputs.slackBotToken,
@@ -27908,7 +27790,6 @@ async function run() {
         description: inputs.description,
         stagingUrl: inputs.stagingUrl,
         author: process.env.GITHUB_ACTOR,
-        jiraLinks,
       });
 
       messageTs = result.ts;
