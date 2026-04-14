@@ -44,9 +44,17 @@ runs:
           - edge cases
           - maintainability issues
 
-          When referencing files, format links with the full path as the display text, not just the filename.
-          For example use: [repo/path/to/file.ts:16](/full/path/to/file.ts:16)
-          instead of: [file.ts](/full/path/to/file.ts:16)
+          CRITICAL file reference formatting rule:
+          When referencing files, use markdown links where the DISPLAY TEXT inside the square brackets must be the full absolute path, NOT just the filename.
+          The display text and the href must be identical — both the full path.
+
+          CORRECT — display text is the full path:
+            [/home/runner/work/injective-fe-server/injective-fe-server/apps/bff-api/src/utils/ip.ts:25](/home/runner/work/injective-fe-server/injective-fe-server/apps/bff-api/src/utils/ip.ts:25)
+
+          WRONG — display text is only the filename:
+            [ip.ts:25](/home/runner/work/injective-fe-server/injective-fe-server/apps/bff-api/src/utils/ip.ts:25)
+
+          The text shown to the reader in [ ] must always be the full path starting from /home/runner/work/. Never shorten it to just the filename.
 
           If no issues are found respond EXACTLY with:
           LGTM
