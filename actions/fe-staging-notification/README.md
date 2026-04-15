@@ -1,16 +1,16 @@
 # fe-staging-notification
 
-A GitHub Action that extracts Jira tickets from commits and sends Slack notifications for frontend staging deployments.
+A GitHub Action that sends Slack notifications for frontend staging deployments and integrates with Linear for ticket tracking.
 
 ## Features
 
-- Extracts Jira tickets (IL-XXXXX) from commit messages
+- Extracts Linear tickets (e.g., INJ-142, SEC-146) from commit messages and PR titles
+- Posts staging URL as a comment on each Linear ticket
 - Creates or updates Slack messages per branch
 - Threads subsequent deployments to existing messages
 - Replaces staging URL with latest (no accumulation)
-- Deduplicates Jira tickets across the entire thread
 - Non-fatal error handling (won't fail your CI)
-- Built-in retry logic for Slack API calls
+- Built-in retry logic for Slack and Linear API calls
 
 ## Usage
 
@@ -22,6 +22,8 @@ A GitHub Action that extracts Jira tickets from commits and sends Slack notifica
     staging_url: "https://staging.example.com"
     slack-user-token: ${{ secrets.SLACK_USER_TOKEN }}
     slack-bot-token: ${{ secrets.SLACK_BOT_TOKEN }}
+    linear-api-key: ${{ secrets.LINEAR_API_KEY }}
+    pr-title: ${{ github.event.pull_request.title }}
 ```
 
 ## Inputs
@@ -36,20 +38,22 @@ A GitHub Action that extracts Jira tickets from commits and sends Slack notifica
 | `slack-bot-token` | Yes | - | Slack bot token for sending messages |
 | `staging_url` | Yes | - | URL of the staging deployment |
 | `slack-channel` | No | "frontend-staging" | Slack channel name |
+| `linear-api-key` | No | - | Linear API key for posting comments on tickets |
+| `commit-messages` | No | - | Newline-separated commit messages (for workflow_dispatch) |
+| `pr-title` | No | - | Pull request title (for extracting Linear tickets) |
 
 ## Outputs
 
 | Output | Description |
 |--------|-------------|
 | `branch_name` | The branch name that was deployed |
-| `jira_tickets` | Comma-separated list of Jira tickets found |
-| `jira_links` | Formatted Jira links for Slack |
 | `message_found` | Whether an existing Slack message was found |
 | `existing_message_ts` | Timestamp of existing Slack message if found |
 | `existing_channel_id` | Channel ID of existing Slack message if found |
-| `existing_jira_tickets` | Jira tickets from existing Slack message |
 | `channel_name` | Slack channel name used |
 | `message_ts` | Timestamp of the Slack message |
+| `linear_tickets` | Comma-separated list of Linear ticket IDs found |
+| `linear_links` | Comma-separated list of Linear ticket URLs |
 
 ## Slack Token Requirements
 
@@ -76,12 +80,14 @@ fe-staging-notification/
 ├── src/                    # Source code
 │   ├── index.js            # Main entry point - orchestrates the action
 │   ├── git.js              # Branch name detection
-│   ├── jira.js             # Jira ticket extraction from commits
+│   ├── commits.js          # Commit message extraction from event payload
+│   ├── linear.js           # Linear ticket extraction and API integration
 │   └── slack.js            # Slack API helpers with retry logic
 │
 ├── __tests__/              # Unit tests (Vitest)
 │   ├── git.test.js
-│   ├── jira.test.js
+│   ├── commits.test.js
+│   ├── linear.test.js
 │   └── slack.test.js
 │
 ├── dist/                   # Bundled output (auto-generated)
@@ -107,33 +113,33 @@ fe-staging-notification/
 │                                                              │
 │  1. Get inputs from action.yml                               │
 │  2. Detect branch name                                       │
-│  3. Extract Jira tickets from commits                        │
+│  3. Extract Linear tickets from commits                      │
 │  4. Search for existing Slack message                        │
 │  5. Update existing OR create new message                    │
 │  6. Set outputs                                              │
 └─────────────────────────────────────────────────────────────┘
            │                │                │
            ▼                ▼                ▼
-    ┌──────────┐     ┌──────────┐     ┌──────────┐
-    │  git.js  │     │ jira.js  │     │ slack.js │
-    └──────────┘     └──────────┘     └──────────┘
+    ┌──────────┐  ┌────────────┐  ┌──────────┐  ┌──────────┐
+    │  git.js  │  │ commits.js │  │linear.js │  │ slack.js │
+    └──────────┘  └────────────┘  └──────────┘  └──────────┘
     
-    getBranchName()   extractJiraTickets()   slackRequest()
-    - INPUT_BRANCH    - git fetch origin/dev  - Retry logic (3x)
-    - Event file      - git log               - Rate limiting
-    - GITHUB_HEAD_REF - Pattern matching      
-    - GITHUB_REF_NAME generateJiraLinks()    searchExistingMessage()
-                      - Slack formatting      updateMessage()
-                                              postMessage()
-                                              postThreadReply()
-                                              addMessageId()
+    getBranchName() getCommitMessages() extractLinearTickets() slackRequest()
+    - INPUT_BRANCH  - Push commits      - Regex matching       - Retry logic (3x)
+    - Event file    - PR title/body     lookupIssue()          - Rate limiting
+    - GITHUB_HEAD_REF                   postIssueComment()     
+    - GITHUB_REF_NAME                   formatLinearComment()  searchExistingMessage()
+                                                               updateMessage()
+                                                               postMessage()
+                                                               postThreadReply()
+                                                               addMessageId()
 ```
 
 ### Key Design Decisions
 
 1. **Dual Slack Tokens**: User token for search (API limitation), bot token for posting
 2. **30-Day Search Limit**: Prevents finding stale messages from old deployments
-3. **Thread-Based Deduplication**: Scans entire thread for Jira tickets, not just main message
+3. **Linear Integration**: Posts staging URL as comments on extracted Linear tickets
 4. **URL Replacement**: Shows only the latest staging URL (previous fix for URL accumulation)
 5. **Non-Fatal Errors**: Logs warnings but never fails the CI pipeline
 6. **Retry Logic**: 3 retries with 2-second delays for transient Slack errors
@@ -232,7 +238,7 @@ The repository is now configured to use the JS version:
 After deployment, monitor for:
 
 1. Slack messages appearing correctly
-2. Jira tickets being extracted
+2. Linear tickets being extracted and commented on
 3. Thread replies working
 4. No CI failures due to the action
 
@@ -293,7 +299,7 @@ If rollback was needed, investigate:
 | "Could not determine branch name" | Missing workflow_dispatch input | Ensure workflow has `branch` input or pass it explicitly |
 | "Slack API error: channel_not_found" | Wrong channel name or bot not in channel | Verify channel name, invite bot to channel |
 | "Slack API error: invalid_auth" | Bad token | Regenerate Slack token |
-| No Jira tickets found | Commits don't have IL-XXXXX pattern | Check commit message format |
+| No Linear tickets found | Commits don't have TEAM-NUMBER pattern | Check commit message format (e.g., INJ-142) |
 | Message not threading | Search didn't find existing message | Message may be >30 days old |
 
 ### Debug Mode

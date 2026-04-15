@@ -28,6 +28,15 @@ inputs:
     description: "Slack channel name for notifications"
     required: false
     default: "frontend-staging"
+  linear-api-key:
+    description: "Linear API key for posting comments on tickets"
+    required: false
+  commit-messages:
+    description: "Newline-separated commit messages (for workflow_dispatch where event payload has no commits)"
+    required: false
+  pr-title:
+    description: "Pull request title (for extracting Linear tickets)"
+    required: false
 
 outputs:
   branch_name:
@@ -42,6 +51,10 @@ outputs:
     description: "Slack channel name used"
   message_ts:
     description: "Timestamp of the Slack message (either existing or newly created)"
+  linear_tickets:
+    description: "Comma-separated list of Linear ticket IDs found"
+  linear_links:
+    description: "Comma-separated list of Linear ticket URLs"
 
 runs:
   using: "node20"

@@ -1,5 +1,12 @@
 import * as core from '@actions/core';
 import { getBranchName } from './git.js';
+import { getCommitMessages } from './commits.js';
+import {
+  lookupIssue,
+  postIssueComment,
+  formatLinearComment,
+  extractLinearTickets,
+} from './linear.js';
 import {
   postMessage,
   addMessageId,
@@ -20,6 +27,9 @@ async function run() {
       slackBotToken: core.getInput('slack-bot-token', { required: true }),
       stagingUrl: core.getInput('staging_url', { required: true }),
       slackChannel: core.getInput('slack-channel') || 'frontend-staging',
+      linearApiKey: core.getInput('linear-api-key'),
+      commitMessages: core.getInput('commit-messages'),
+      prTitle: core.getInput('pr-title'),
     };
 
     // Step 1: Get branch name (from input, fallback to git context)
@@ -99,6 +109,80 @@ async function run() {
 
     core.setOutput('message_ts', messageTs);
     core.info('Slack notification completed successfully');
+
+    // Step 5: Linear ticket integration
+    if (inputs.linearApiKey) {
+      try {
+        // Gather text sources for ticket extraction
+        const eventMessages = getCommitMessages();
+        const manualMessages = inputs.commitMessages
+          ? inputs.commitMessages.split('\n').filter(Boolean)
+          : [];
+        const allTexts = [...eventMessages, ...manualMessages, inputs.prTitle].filter(Boolean);
+
+        const ticketIds = extractLinearTickets(allTexts);
+
+        if (ticketIds.length === 0) {
+          core.info('No Linear tickets found in commits or PR title');
+          core.setOutput('linear_tickets', '');
+          core.setOutput('linear_links', '');
+        } else {
+          core.info(`Found Linear tickets: ${ticketIds.join(', ')}`);
+
+          // Look up each ticket and post comments
+          const validIssues = [];
+          for (const ticketId of ticketIds) {
+            const issue = await lookupIssue(ticketId, inputs.linearApiKey);
+            if (issue) {
+              validIssues.push(issue);
+
+              const commentBody = formatLinearComment({
+                repo: inputs.repo,
+                branchName,
+                stagingUrl: inputs.stagingUrl,
+                author: process.env.GITHUB_ACTOR,
+              });
+
+              await postIssueComment(issue.id, commentBody, inputs.linearApiKey);
+              core.info(`Posted staging comment on ${issue.identifier}`);
+            } else {
+              core.info(`Linear ticket ${ticketId} not found, skipping`);
+            }
+          }
+
+          // Post Slack thread reply with Linear ticket summary
+          if (validIssues.length > 0 && messageTs) {
+            const ticketList = validIssues
+              .map((issue) => `• <${issue.url}|${issue.identifier}> - ${issue.title}`)
+              .join('\n');
+
+            // const channelId = existingMessage
+            //   ? existingMessage.channelId
+            //   : undefined;
+
+            await postThreadReply({
+              botToken: inputs.slackBotToken,
+              channel: inputs.slackChannel,
+              threadTs: messageTs,
+              network: inputs.network,
+              description: `Linear tickets linked:\n${ticketList}`,
+              stagingUrl: inputs.stagingUrl,
+              author: process.env.GITHUB_ACTOR,
+            });
+          }
+
+          core.setOutput('linear_tickets', validIssues.map((i) => i.identifier).join(','));
+          core.setOutput('linear_links', validIssues.map((i) => i.url).join(','));
+        }
+      } catch (linearError) {
+        core.warning(`Linear integration failed: ${linearError.message}`);
+        core.setOutput('linear_tickets', '');
+        core.setOutput('linear_links', '');
+      }
+    } else {
+      core.setOutput('linear_tickets', '');
+      core.setOutput('linear_links', '');
+    }
   } catch (error) {
     // Don't fail the action, just log the error
     core.warning(`Slack notification failed: ${error.message}`);
