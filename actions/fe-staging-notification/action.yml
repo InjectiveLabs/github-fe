@@ -44,5 +44,5 @@ outputs:
     description: "Timestamp of the Slack message (either existing or newly created)"
 
 runs:
-  using: "node20"
+  using: "node24"
   main: "dist/index.js"

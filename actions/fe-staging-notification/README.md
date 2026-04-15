@@ -68,7 +68,7 @@ The user token is required because the Slack `search.messages` API only works wi
 
 ```
 fe-staging-notification/
-├── action.yml              # Action definition (node20)
+├── action.yml              # Action definition (node24)
 ├── action.bash.yml         # Backup of original bash version (for rollback)
 ├── package.json            # Dependencies and scripts
 ├── vitest.config.js        # Test configuration
@@ -222,7 +222,7 @@ The repository is now configured to use the JS version:
 
 | File | Status |
 |------|--------|
-| `action.yml` | JS version (node20) |
+| `action.yml` | JS version (node24) |
 | `action.bash.yml` | Bash backup (rollback ready) |
 
 **No workflow changes required** - the action interface is identical.
