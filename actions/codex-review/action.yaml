@@ -85,6 +85,19 @@ runs:
           const prefix = "**Verify each finding against the current code and only fix it if needed.**\n\n"
           let raw = process.env.MESSAGE || ""
 
+          if (!raw.trim()) {
+            core.setFailed('Codex returned empty output — review may not have completed successfully.')
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: ${{ inputs.pr-number }},
+              body: '⚠️ Codex review returned empty output. The review may not have completed successfully — please check the workflow logs.'
+            })
+
+            return
+          }
+
           // Clean up absolute runner paths: /home/runner/work/{dir}/{repo}/path → {repo}/path
           raw = raw.replace(/\/home\/runner\/work\/[^\/]+\//g, '')
 
@@ -92,14 +105,9 @@ runs:
           // replace the display text with the href so readers see the full path
           raw = raw.replace(/\[([^\]\/\n]+\.[a-z]{1,4}(?::\d+)?)\]\(([^)]*\/[^)]+)\)/g, (m, text, href) => `[${href}](${href})`)
 
-          const message =
-            raw.trim() !== ""
-              ? prefix + raw
-              : "🟢 Codex reviewed the PR and found no issues."
-
           await github.rest.issues.createComment({
             owner: context.repo.owner,
             repo: context.repo.repo,
             issue_number: ${{ inputs.pr-number }},
-            body: message
+            body: prefix + raw
           })
