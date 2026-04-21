@@ -45,16 +45,23 @@ runs:
           - maintainability issues
 
           CRITICAL file reference formatting rule:
-          When referencing files, use markdown links where the DISPLAY TEXT inside the square brackets must be the full absolute path, NOT just the filename.
-          The display text and the href must be identical — both the full path.
+          When referencing files, you MUST use markdown links with the repository name prepended to the file path from the diff.
+          The repository name is: ${{ github.event.repository.name }}
+          File paths in the diff look like "apps/chain-stream/src/app.ts" — prepend the repo name to get the display format.
+          Both the link text and href MUST be identical and use this format.
 
-          CORRECT — display text is the full path:
-            [/home/runner/work/injective-fe-server/injective-fe-server/apps/bff-api/src/utils/ip.ts:25](/home/runner/work/injective-fe-server/injective-fe-server/apps/bff-api/src/utils/ip.ts:25)
+          CORRECT format examples:
+            [${{ github.event.repository.name }}/apps/chain-stream/src/app.ts:56](${{ github.event.repository.name }}/apps/chain-stream/src/app.ts:56)
+            [${{ github.event.repository.name }}/src/utils/ip.ts:25](${{ github.event.repository.name }}/src/utils/ip.ts:25)
 
-          WRONG — display text is only the filename:
-            [ip.ts:25](/home/runner/work/injective-fe-server/injective-fe-server/apps/bff-api/src/utils/ip.ts:25)
+          WRONG — filename only (NEVER do this):
+            [app.ts](app.ts)
+            [ip.ts:25](ip.ts:25)
 
-          The text shown to the reader in [ ] must always be the full path starting from /home/runner/work/. Never shorten it to just the filename.
+          WRONG — absolute runner path (NEVER do this):
+            [/home/runner/work/repo/repo/src/app.ts](/home/runner/work/repo/repo/src/app.ts)
+
+          Every file reference MUST start with "${{ github.event.repository.name }}/" followed by the path from the diff.
 
           If no issues are found respond EXACTLY with:
           LGTM
@@ -75,9 +82,19 @@ runs:
       with:
         github-token: ${{ inputs.github-token }}
         script: |
+          const prefix = "**Verify each finding against the current code and only fix it if needed.**\n\n"
+          let raw = process.env.MESSAGE || ""
+
+          // Clean up absolute runner paths: /home/runner/work/{dir}/{repo}/path → {repo}/path
+          raw = raw.replace(/\/home\/runner\/work\/[^\/]+\//g, '')
+
+          // If a markdown link's display text is just a filename but the href has the full path,
+          // replace the display text with the href so readers see the full path
+          raw = raw.replace(/\[([^\]\/\n]+\.[a-z]{1,4}(?::\d+)?)\]\(([^)]*\/[^)]+)\)/g, (m, text, href) => `[${href}](${href})`)
+
           const message =
-            process.env.MESSAGE && process.env.MESSAGE.trim() !== ""
-              ? process.env.MESSAGE
+            raw.trim() !== ""
+              ? prefix + raw
               : "🟢 Codex reviewed the PR and found no issues."
 
           await github.rest.issues.createComment({
