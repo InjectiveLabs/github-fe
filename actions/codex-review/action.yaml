@@ -105,9 +105,11 @@ runs:
           // replace the display text with the href so readers see the full path
           raw = raw.replace(/\[([^\]\/\n]+\.[a-z]{1,4}(?::\d+)?)\]\(([^)]*\/[^)]+)\)/g, (m, text, href) => `[${href}](${href})`)
 
+          const isLgtm = raw.trim() === 'LGTM'
+
           await github.rest.issues.createComment({
             owner: context.repo.owner,
             repo: context.repo.repo,
             issue_number: ${{ inputs.pr-number }},
-            body: prefix + raw
+            body: isLgtm ? raw.trim() : prefix + raw
           })
