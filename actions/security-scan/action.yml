@@ -1,0 +1,35 @@
+name: 'Security Scan'
+description: 'Scans the project for compromised packages. Fails the workflow if any compromised packages are detected.'
+
+inputs:
+  directory:
+    description: 'Path to the project directory to scan'
+    required: false
+    default: '.'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Check for compromised TanStack packages with Mini Shai-Hulud checker
+      shell: bash
+      run: |
+        echo "::group::Supply chain security scan (Mini Shai-Hulud)"
+        echo "Scanning directory: ${{ inputs.directory }}"
+        echo "Checker: github:champjss/mini-shai-hulud-checker-20260512#c0e149f"
+        echo ""
+
+        SCAN_OUTPUT=$(npx --yes github:champjss/mini-shai-hulud-checker-20260512#c0e149f check-project:packages ${{ inputs.directory }} 2>&1)
+        SCAN_EXIT=$?
+
+        echo "$SCAN_OUTPUT"
+        echo ""
+
+        if [ $SCAN_EXIT -eq 0 ]; then
+          echo "::notice::Security scan passed — no compromised packages detected."
+        else
+          echo "::error::Security scan FAILED — compromised packages detected in lockfile. Halting workflow."
+          echo "::endgroup::"
+          exit 1
+        fi
+
+        echo "::endgroup::"
