@@ -45,7 +45,7 @@ runs:
       shell: bash
 
     - name: Security scan
-      uses: ./actions/security-scan
+      uses: InjectiveLabs/github-fe/actions/security-scan@master
 
     - name: Build app
       run: ssh devnet 'source $HOME/.nvm/nvm.sh && cd '"${{ inputs.source_dir }}"' && pnpm clean-up && pnpm generate'
