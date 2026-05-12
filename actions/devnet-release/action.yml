@@ -45,8 +45,8 @@ runs:
       shell: bash
 
     - name: Security scan
-      shell: bash
       run: |
+        ssh devnet 'source $HOME/.nvm/nvm.sh && cd '"${{ inputs.source_dir }}"' && bash -s' << '"'"'ENDSCAN'"'"'
         echo "::group::Supply chain security scan (Mini Shai-Hulud)"
         echo "Checker: github:champjss/mini-shai-hulud-checker-20260512#c0e149f"
         echo ""
@@ -65,6 +65,8 @@ runs:
         fi
 
         echo "::endgroup::"
+        ENDSCAN
+      shell: bash
 
     - name: Build app
       run: ssh devnet 'source $HOME/.nvm/nvm.sh && cd '"${{ inputs.source_dir }}"' && pnpm clean-up && pnpm generate'
