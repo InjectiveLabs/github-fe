@@ -45,7 +45,26 @@ runs:
       shell: bash
 
     - name: Security scan
-      uses: InjectiveLabs/github-fe/actions/security-scan@master
+      shell: bash
+      run: |
+        echo "::group::Supply chain security scan (Mini Shai-Hulud)"
+        echo "Checker: github:champjss/mini-shai-hulud-checker-20260512#c0e149f"
+        echo ""
+
+        SCAN_OUTPUT=$(npx --yes github:champjss/mini-shai-hulud-checker-20260512#c0e149f check-project:packages . 2>&1) && SCAN_EXIT=0 || SCAN_EXIT=$?
+
+        echo "$SCAN_OUTPUT"
+        echo ""
+
+        if [ $SCAN_EXIT -eq 0 ]; then
+          echo "::notice::Security scan passed — no compromised packages detected."
+        else
+          echo "::error::Security scan FAILED — compromised packages detected in lockfile. Halting workflow."
+          echo "::endgroup::"
+          exit 1
+        fi
+
+        echo "::endgroup::"
 
     - name: Build app
       run: ssh devnet 'source $HOME/.nvm/nvm.sh && cd '"${{ inputs.source_dir }}"' && pnpm clean-up && pnpm generate'
