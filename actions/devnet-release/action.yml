@@ -40,8 +40,15 @@ runs:
       run: ssh devnet 'source $HOME/.nvm/nvm.sh && cd '"${{ inputs.source_dir }}"' && rm -rf node_modules && rm pnpm-lock.yaml'
       shell: bash
 
+    - name: Install dependencies
+      run: ssh devnet 'source $HOME/.nvm/nvm.sh && cd '"${{ inputs.source_dir }}"' && pnpm install'
+      shell: bash
+
+    - name: Security scan
+      uses: ./actions/security-scan
+
     - name: Build app
-      run: ssh devnet 'source $HOME/.nvm/nvm.sh && cd '"${{ inputs.source_dir }}"' && pnpm install && pnpm clean-up && pnpm generate'
+      run: ssh devnet 'source $HOME/.nvm/nvm.sh && cd '"${{ inputs.source_dir }}"' && pnpm clean-up && pnpm generate'
       shell: bash
       env:
         NODE_OPTIONS: '--max_old_space_size=15360'
