@@ -80,8 +80,8 @@ runs:
       shell: bash
       run: |
         cd tmp
-        git config user.name "InjectiveLabs"
-        git config user.email "admin@injectivelabs.org"
+        git config user.name "${{ github.actor }}"
+        git config user.email "${{ github.actor }}@users.noreply.github.com"
 
         # Check if there are any changes to commit
         if [ -z "$(git status --porcelain)" ]; then
