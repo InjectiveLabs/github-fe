@@ -1,5 +1,5 @@
 name: 'Security Scan'
-description: 'Scans the project for compromised packages. Fails the workflow if any compromised packages are detected.'
+description: 'Scans the project for compromised and vulnerable packages. Fails the workflow if any are detected.'
 
 inputs:
   directory:
@@ -10,24 +10,102 @@ inputs:
 runs:
   using: 'composite'
   steps:
-    - name: Check for compromised TanStack packages with Mini Shai-Hulud checker
+    - name: Supply chain security scan (Shai-Hulud Detector)
       shell: bash
       run: |
-        echo "::group::Supply chain security scan (Mini Shai-Hulud)"
+        echo "::group::Supply chain security scan (Shai-Hulud Detector)"
         echo "Scanning directory: ${{ inputs.directory }}"
-        echo "Checker: github:champjss/mini-shai-hulud-checker-20260512#c0e149f"
-        echo ""
 
-        SCAN_OUTPUT=$(npx --yes github:champjss/mini-shai-hulud-checker-20260512#c0e149f check-project:packages ${{ inputs.directory }} 2>&1)
-        SCAN_EXIT=$?
+        # Pin to audited commit (May 12, 2026)
+        DETECTOR_SHA="385da712193756a2e0a2e4be513587f3f506b334"
+        DETECTOR_DIR="$(mktemp -d)"
+
+        echo "Cloning Cobenian/shai-hulud-detect @ ${DETECTOR_SHA}..."
+        git clone --quiet --depth 1 https://github.com/Cobenian/shai-hulud-detect.git "$DETECTOR_DIR"
+        git -C "$DETECTOR_DIR" fetch --depth 1 origin "$DETECTOR_SHA"
+        git -C "$DETECTOR_DIR" checkout "$DETECTOR_SHA" --quiet
+
+        # Verify the checkout matches the expected SHA
+        ACTUAL_SHA="$(git -C "$DETECTOR_DIR" rev-parse HEAD)"
+        if [ "$ACTUAL_SHA" != "$DETECTOR_SHA" ]; then
+          echo "::error::SHA mismatch! Expected ${DETECTOR_SHA}, got ${ACTUAL_SHA}. Aborting."
+          exit 1
+        fi
+
+        # Merge custom blocked packages into the detector's list
+        CUSTOM_LIST="${GITHUB_ACTION_PATH}/compromised-packages-custom.txt"
+        if [ -f "$CUSTOM_LIST" ]; then
+          echo ""
+          echo "Appending custom blocked packages from compromised-packages-custom.txt..."
+          echo "" >> "$DETECTOR_DIR/compromised-packages.txt"
+          echo "# ========================================================================" >> "$DETECTOR_DIR/compromised-packages.txt"
+          echo "# CUSTOM BLOCKED PACKAGES (from InjectiveLabs/github-fe)" >> "$DETECTOR_DIR/compromised-packages.txt"
+          echo "# ========================================================================" >> "$DETECTOR_DIR/compromised-packages.txt"
+          cat "$CUSTOM_LIST" >> "$DETECTOR_DIR/compromised-packages.txt"
+        fi
+
+        chmod +x "$DETECTOR_DIR/shai-hulud-detector.sh"
+
+        echo ""
+        echo "Running detector..."
+        SCAN_OUTPUT=$("$DETECTOR_DIR/shai-hulud-detector.sh" "${{ inputs.directory }}" 2>&1) || SCAN_EXIT=$?
+        SCAN_EXIT=${SCAN_EXIT:-0}
 
         echo "$SCAN_OUTPUT"
         echo ""
 
+        # Extract and annotate compromised packages for GitHub Actions
+        if [ $SCAN_EXIT -ne 0 ]; then
+          echo ""
+          echo "::group::📋 Vulnerable Packages Detected"
+          
+          # Extract package list from output (format: "- Package: name@version")
+          PACKAGES=$(echo "$SCAN_OUTPUT" | grep -E "^\s*-\s*Package:\s*" | sed 's/.*Package: //' | sort -u || true)
+          
+          if [ -n "$PACKAGES" ]; then
+            echo "The following vulnerable packages were detected:"
+            echo ""
+            echo "$PACKAGES" | while IFS= read -r pkg; do
+              echo "  ❌ $pkg"
+              # Create GitHub annotation for each package
+              echo "::error::Vulnerable package detected: $pkg"
+            done
+            echo ""
+            
+            # Add to job summary if available
+            if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+              {
+                echo "## 🚨 Security Scan Failed"
+                echo ""
+                echo "**Vulnerable packages detected:**"
+                echo ""
+                echo "$PACKAGES" | while IFS= read -r pkg; do
+                  echo "- \`$pkg\`"
+                done
+                echo ""
+                echo "**Action Required:** Update or remove these packages immediately."
+                echo ""
+                echo "**References:**"
+                echo "- [Shai-Hulud Attack Info](https://github.com/Cobenian/shai-hulud-detect)"
+                echo "- [Custom CVE Blocklist](https://github.com/InjectiveLabs/github-fe/blob/master/actions/security-scan/compromised-packages-custom.txt)"
+              } >> "${GITHUB_STEP_SUMMARY}"
+            fi
+          fi
+          
+          echo "::endgroup::"
+        fi
+
+        # Cleanup
+        rm -rf "$DETECTOR_DIR"
+
         if [ $SCAN_EXIT -eq 0 ]; then
-          echo "::notice::Security scan passed — no compromised packages detected."
+          echo "::notice::Security scan passed — no compromised or vulnerable packages detected."
+        elif [ $SCAN_EXIT -eq 2 ]; then
+          echo "::warning::Security scan found MEDIUM risk indicators. Review required."
+          echo "::endgroup::"
+          exit 1
         else
-          echo "::error::Security scan FAILED — compromised packages detected in lockfile. Halting workflow."
+          echo "::error::Security scan FAILED — compromised or vulnerable packages detected. Halting workflow."
           echo "::endgroup::"
           exit 1
         fi
