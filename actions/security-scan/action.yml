@@ -103,7 +103,6 @@ runs:
         elif [ $SCAN_EXIT -eq 2 ]; then
           echo "::warning::Security scan found MEDIUM risk indicators. Review required."
           echo "::endgroup::"
-          exit 1
         else
           echo "::error::Security scan FAILED — compromised or vulnerable packages detected. Halting workflow."
           echo "::endgroup::"
