@@ -54,6 +54,47 @@ runs:
         echo "$SCAN_OUTPUT"
         echo ""
 
+        # Extract and annotate compromised packages for GitHub Actions
+        if [ $SCAN_EXIT -ne 0 ]; then
+          echo ""
+          echo "::group::📋 Vulnerable Packages Detected"
+          
+          # Extract package list from output (format: "- Package: name@version")
+          PACKAGES=$(echo "$SCAN_OUTPUT" | grep -E "^\s*-\s*Package:\s*" | sed 's/.*Package: //' | sort -u)
+          
+          if [ -n "$PACKAGES" ]; then
+            echo "The following vulnerable packages were detected:"
+            echo ""
+            echo "$PACKAGES" | while IFS= read -r pkg; do
+              echo "  ❌ $pkg"
+              # Create GitHub annotation for each package
+              echo "::error::Vulnerable package detected: $pkg"
+            done
+            echo ""
+            
+            # Add to job summary if available
+            if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+              {
+                echo "## 🚨 Security Scan Failed"
+                echo ""
+                echo "**Vulnerable packages detected:**"
+                echo ""
+                echo "$PACKAGES" | while IFS= read -r pkg; do
+                  echo "- \`$pkg\`"
+                done
+                echo ""
+                echo "**Action Required:** Update or remove these packages immediately."
+                echo ""
+                echo "**References:**"
+                echo "- [Shai-Hulud Attack Info](https://github.com/Cobenian/shai-hulud-detect)"
+                echo "- [Custom CVE Blocklist](https://github.com/InjectiveLabs/github-fe/blob/master/actions/security-scan/compromised-packages-custom.txt)"
+              } >> "${GITHUB_STEP_SUMMARY}"
+            fi
+          fi
+          
+          echo "::endgroup::"
+        fi
+
         # Cleanup
         rm -rf "$DETECTOR_DIR"
 

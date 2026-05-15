@@ -72,6 +72,41 @@ The scan runs **before `pnpm install`** in deploy workflows, so it only analyzes
 | 1 | HIGH risk - compromised packages found | Fail workflow |
 | 2 | MEDIUM risk - suspicious patterns found | Fail workflow (conservative) |
 
+## Output Format
+
+When vulnerabilities are detected, the action provides multiple layers of visibility:
+
+### 1. Console Output
+Full scan results with color-coded findings from the detector.
+
+### 2. Extracted Package List
+Clean list of vulnerable packages displayed separately:
+```
+📋 Vulnerable Packages Detected
+The following vulnerable packages were detected:
+
+  ❌ next@14.2.15
+  ❌ axios@1.14.1
+  ❌ @ctrl/tinycolor@4.1.1
+```
+
+### 3. GitHub Annotations
+Each vulnerable package creates a clickable error annotation in the GitHub Actions UI.
+
+### 4. Job Summary
+A markdown summary appears at the top of the workflow run:
+
+```markdown
+## 🚨 Security Scan Failed
+
+**Vulnerable packages detected:**
+- `next@14.2.15`
+- `axios@1.14.1`
+- `@ctrl/tinycolor@4.1.1`
+
+**Action Required:** Update or remove these packages immediately.
+```
+
 ## Security Guarantees
 
 - **No remote code execution** - pure bash, no `npx` or `npm install`
