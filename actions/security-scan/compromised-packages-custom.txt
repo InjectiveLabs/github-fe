@@ -1,0 +1,161 @@
+# Custom blocked packages for Injective frontend repos
+# Format: package_name:version (one per line, # for comments)
+# Add vulnerable packages here as CVEs are disclosed.
+#
+# ========================================================================
+# CVE-2025-29927 - Next.js Middleware Authorization Bypass (CVSS 9.1)
+# Affects self-hosted Next.js instances using middleware for auth checks.
+# Patched versions: 12.3.5, 13.5.9, 14.2.25, 15.2.3
+# https://github.com/vercel/next.js/security/advisories/GHSA-f82v-jwr5-mffw
+# ========================================================================
+# NOTE: Listing every affected minor/patch is impractical (hundreds of versions).
+# Instead we list the known-vulnerable major.minor ranges. The scan script
+# does exact matching, so we enumerate the most common pinned versions.
+# Extend as needed if your lockfile pins a specific version not listed here.
+
+# Next.js 14.x (vulnerable: >=14.0.0 <14.2.25)
+next:14.0.0
+next:14.0.1
+next:14.0.2
+next:14.0.3
+next:14.0.4
+next:14.1.0
+next:14.1.1
+next:14.1.2
+next:14.1.3
+next:14.1.4
+next:14.2.0
+next:14.2.1
+next:14.2.2
+next:14.2.3
+next:14.2.4
+next:14.2.5
+next:14.2.6
+next:14.2.7
+next:14.2.8
+next:14.2.9
+next:14.2.10
+next:14.2.11
+next:14.2.12
+next:14.2.13
+next:14.2.14
+next:14.2.15
+next:14.2.16
+next:14.2.17
+next:14.2.18
+next:14.2.19
+next:14.2.20
+next:14.2.21
+next:14.2.22
+next:14.2.23
+next:14.2.24
+
+# Next.js 15.x (vulnerable: >=15.0.0 <15.2.3)
+next:15.0.0
+next:15.0.1
+next:15.0.2
+next:15.0.3
+next:15.1.0
+next:15.1.1
+next:15.1.2
+next:15.1.3
+next:15.1.4
+next:15.2.0
+next:15.2.1
+next:15.2.2
+
+# Next.js 13.x (vulnerable: >=13.0.0 <13.5.9)
+next:13.0.0
+next:13.0.1
+next:13.0.2
+next:13.0.3
+next:13.0.4
+next:13.0.5
+next:13.0.6
+next:13.0.7
+next:13.1.0
+next:13.1.1
+next:13.1.2
+next:13.1.3
+next:13.1.4
+next:13.1.5
+next:13.1.6
+next:13.2.0
+next:13.2.1
+next:13.2.2
+next:13.2.3
+next:13.2.4
+next:13.3.0
+next:13.3.1
+next:13.3.2
+next:13.3.3
+next:13.3.4
+next:13.4.0
+next:13.4.1
+next:13.4.2
+next:13.4.3
+next:13.4.4
+next:13.4.5
+next:13.4.6
+next:13.4.7
+next:13.4.8
+next:13.4.9
+next:13.4.10
+next:13.4.11
+next:13.4.12
+next:13.4.13
+next:13.4.14
+next:13.4.15
+next:13.4.16
+next:13.4.17
+next:13.4.18
+next:13.4.19
+next:13.5.0
+next:13.5.1
+next:13.5.2
+next:13.5.3
+next:13.5.4
+next:13.5.5
+next:13.5.6
+next:13.5.7
+next:13.5.8
+
+# Next.js 12.x (vulnerable: >=11.1.4 <12.3.5)
+next:12.0.0
+next:12.0.1
+next:12.0.2
+next:12.0.3
+next:12.0.4
+next:12.0.5
+next:12.0.6
+next:12.0.7
+next:12.0.8
+next:12.0.9
+next:12.0.10
+next:12.1.0
+next:12.1.1
+next:12.1.2
+next:12.1.3
+next:12.1.4
+next:12.1.5
+next:12.1.6
+next:12.2.0
+next:12.2.1
+next:12.2.2
+next:12.2.3
+next:12.2.4
+next:12.2.5
+next:12.3.0
+next:12.3.1
+next:12.3.2
+next:12.3.3
+next:12.3.4
+
+# Next.js 11.x (vulnerable: >=11.1.4, no patch available per LTS policy)
+next:11.1.4
+next:11.1.5
+next:11.1.6
+next:11.1.7
+next:11.1.8
+next:11.1.9
+next:11.1.10
