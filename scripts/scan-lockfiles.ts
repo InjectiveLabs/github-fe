@@ -122,8 +122,8 @@ function fetchUpstreamList(): string {
       console.log(`${c.yellow}   Warning: Could not fetch upstream list, using stale cache${c.reset}`)
       return readFileSync(CACHE_FILE, 'utf-8')
     } catch {
-      console.log(`${c.yellow}   Warning: Could not fetch upstream list and no cache available${c.reset}`)
-      return ''
+      console.log(`${c.red}   Error: Could not fetch upstream list and no cache available${c.reset}`)
+      throw new Error('Could not obtain compromised package database: upstream fetch failed and no cache available')
     }
   }
 }

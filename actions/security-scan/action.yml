@@ -60,7 +60,7 @@ runs:
           echo "::group::📋 Vulnerable Packages Detected"
           
           # Extract package list from output (format: "- Package: name@version")
-          PACKAGES=$(echo "$SCAN_OUTPUT" | grep -E "^\s*-\s*Package:\s*" | sed 's/.*Package: //' | sort -u)
+          PACKAGES=$(echo "$SCAN_OUTPUT" | grep -E "^\s*-\s*Package:\s*" | sed 's/.*Package: //' | sort -u || true)
           
           if [ -n "$PACKAGES" ]; then
             echo "The following vulnerable packages were detected:"

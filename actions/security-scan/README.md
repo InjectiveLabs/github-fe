@@ -41,7 +41,7 @@ When a new CVE is disclosed:
 1. Open `actions/security-scan/compromised-packages-custom.txt`
 2. Add affected package versions in `package:version` format with a comment block:
 
-```
+```text
 # ========================================================================
 # CVE-YYYY-NNNNN - Description (CVSS X.X)
 # Affects: ...
@@ -60,7 +60,7 @@ package-name:1.2.4
 - **Package manifests**: `package.json`
 - **Lockfiles**: `pnpm-lock.yaml`, `package-lock.json`, `yarn.lock`
 - **Code files**: `*.js`, `*.ts`, `*.mjs` for malicious patterns
-- **Workflow files**: `.github/workflows/*.yml` for compromised actions
+- **Workflow files**: `.github/workflows/*.yml` for compromised GitHub Actions
 
 The scan runs **before `pnpm install`** in deploy workflows, so it only analyzes committed files (lockfile, package.json, source code).
 
@@ -81,7 +81,7 @@ Full scan results with color-coded findings from the detector.
 
 ### 2. Extracted Package List
 Clean list of vulnerable packages displayed separately:
-```
+```text
 📋 Vulnerable Packages Detected
 The following vulnerable packages were detected:
 
@@ -138,7 +138,7 @@ pnpm scan /path/to/repos           # scans a specific folder
 The script (`scripts/scan-lockfiles.ts`) does the following:
 
 1. Recursively finds all `pnpm-lock.yaml` files under the target folder (skips `node_modules`, `.git`, `dist`, etc.)
-2. Fetches the upstream Cobenian compromised package list from GitHub (cached 24h in `/tmp/`)
+2. Fetches the upstream Cobenian compromised package list from GitHub (cached 24h in the OS temp directory (`os.tmpdir()`))
 3. Merges it with `compromised-packages-custom.txt` for a combined check
 4. Parses each lockfile (pnpm v9 format) and checks resolved packages against the combined list
 5. Logs per-repo results with advisory/CVE metadata and a summary
@@ -147,7 +147,7 @@ The script (`scripts/scan-lockfiles.ts`) does the following:
 
 Each repo is shown with its package count and status. Vulnerable packages include the campaign/CVE title and a source URL:
 
-```
+```text
 📦 injective-hub
    pnpm-lock.yaml (1,204 packages)
    ❌ 1 vulnerable package:
