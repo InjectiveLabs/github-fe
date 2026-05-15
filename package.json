@@ -27,7 +27,8 @@
     "install:release-note": "cd actions/release-note && npm install",
     "install:prod-deployment": "cd actions/prod-deployment-notification && npm install",
     "install:fe-staging": "cd actions/fe-staging-notification && npm install",
-    "prepare": "husky"
+    "prepare": "husky",
+    "scan": "tsx scripts/scan-lockfiles.ts"
   },
   "keywords": [],
   "author": "",
@@ -36,6 +37,8 @@
     "eslint": "^9.16.0",
     "eslint-plugin-perfectionist": "^4.4.0",
     "husky": "^9.1.7",
-    "prettier": "^3.4.2"
+    "prettier": "^3.4.2",
+    "tsx": "^4.22.0",
+    "yaml": "^2.9.0"
   }
 }

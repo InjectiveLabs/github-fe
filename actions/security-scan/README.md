@@ -125,6 +125,40 @@ To update to a newer version of `shai-hulud-detect`:
 
 Current pinned version: `385da712193756a2e0a2e4be513587f3f506b334` (May 12, 2026)
 
+## Local Scanning
+
+A TypeScript script is available for scanning all repos locally without CI:
+
+```bash
+# From the github-fe repo root:
+pnpm scan                          # scans ~/Public/injective/ (default)
+pnpm scan /path/to/repos           # scans a specific folder
+```
+
+The script (`scripts/scan-lockfiles.ts`) does the following:
+
+1. Recursively finds all `pnpm-lock.yaml` files under the target folder (skips `node_modules`, `.git`, `dist`, etc.)
+2. Fetches the upstream Cobenian compromised package list from GitHub (cached 24h in `/tmp/`)
+3. Merges it with `compromised-packages-custom.txt` for a combined check
+4. Parses each lockfile (pnpm v9 format) and checks resolved packages against the combined list
+5. Logs per-repo results with advisory/CVE metadata and a summary
+
+### Output
+
+Each repo is shown with its package count and status. Vulnerable packages include the campaign/CVE title and a source URL:
+
+```
+📦 injective-hub
+   pnpm-lock.yaml (1,204 packages)
+   ❌ 1 vulnerable package:
+
+   • next@14.2.15
+     CVE-2025-29927 - Next.js Middleware Authorization Bypass (CVSS 9.1)
+     https://github.com/vercel/next.js/security/advisories/GHSA-f82v-jwr5-mffw
+```
+
+The script always exits 0 — findings are informational for local use. The CI action handles enforcement.
+
 ## Known Limitations
 
 - **Exact version matching only** - `compromised-packages-custom.txt` requires listing every vulnerable version explicitly. Semver range matching (`>=14.0.0 <14.2.25`) is not supported by the detector.
