@@ -10,6 +10,12 @@ inputs:
 runs:
   using: 'composite'
   steps:
+    - name: Cache Shai-Hulud detector
+      uses: actions/cache@v4
+      with:
+        path: /tmp/shai-hulud-detect
+        key: shai-hulud-385da712193756a2e0a2e4be513587f3f506b334
+
     - name: Supply chain security scan (Shai-Hulud Detector)
       shell: bash
       run: |
@@ -18,12 +24,16 @@ runs:
 
         # Pin to audited commit (May 12, 2026)
         DETECTOR_SHA="385da712193756a2e0a2e4be513587f3f506b334"
-        DETECTOR_DIR="$(mktemp -d)"
+        DETECTOR_DIR="/tmp/shai-hulud-detect"
 
-        echo "Cloning Cobenian/shai-hulud-detect @ ${DETECTOR_SHA}..."
-        git clone --quiet --depth 1 https://github.com/Cobenian/shai-hulud-detect.git "$DETECTOR_DIR"
-        git -C "$DETECTOR_DIR" fetch --depth 1 origin "$DETECTOR_SHA"
-        git -C "$DETECTOR_DIR" checkout "$DETECTOR_SHA" --quiet
+        if [ ! -d "$DETECTOR_DIR/.git" ]; then
+          echo "Cloning Cobenian/shai-hulud-detect @ ${DETECTOR_SHA}..."
+          git clone --quiet --depth 1 https://github.com/Cobenian/shai-hulud-detect.git "$DETECTOR_DIR"
+          git -C "$DETECTOR_DIR" fetch --depth 1 origin "$DETECTOR_SHA"
+          git -C "$DETECTOR_DIR" checkout "$DETECTOR_SHA" --quiet
+        else
+          echo "Using cached Cobenian/shai-hulud-detect @ ${DETECTOR_SHA}"
+        fi
 
         # Verify the checkout matches the expected SHA
         ACTUAL_SHA="$(git -C "$DETECTOR_DIR" rev-parse HEAD)"

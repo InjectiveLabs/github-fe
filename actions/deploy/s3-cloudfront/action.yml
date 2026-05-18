@@ -17,7 +17,7 @@ outputs:
 runs:
   using: 'composite'
   steps:
-    - name: Sync hashed assets to S3
+    - name: Sync assets to S3
       shell: bash
       run: |
         aws s3 sync .output/public/ s3://${{ inputs.s3-bucket }}/ --follow-symlinks --delete \
@@ -26,24 +26,23 @@ runs:
           --exclude "manifest.json" --exclude "site.webmanifest" \
           --exclude "browserconfig.xml" --exclude "sitemap.xml" \
           --cache-control "max-age=2592000,public" \
-          --expires 2034-01-01T00:00:00Z
+          --expires 2034-01-01T00:00:00Z &
+        PID1=$!
 
-    - name: Sync unhashed root assets to S3
-      shell: bash
-      run: |
-        aws s3 sync .output/public/ s3://${{ inputs.s3-bucket }}/ --follow-symlinks --delete \
+        aws s3 sync .output/public/ s3://${{ inputs.s3-bucket }}/ --follow-symlinks \
           --exclude "*" \
           --include "robots.txt" --include "favicon*" \
           --include "manifest.json" --include "site.webmanifest" \
           --include "browserconfig.xml" --include "sitemap.xml" \
-          --cache-control "no-cache"
+          --cache-control "no-cache" &
+        PID2=$!
 
-    - name: Sync HTML to S3
-      shell: bash
-      run: |
-        aws s3 sync .output/public/ s3://${{ inputs.s3-bucket }}/ --follow-symlinks --delete \
+        aws s3 sync .output/public/ s3://${{ inputs.s3-bucket }}/ --follow-symlinks \
           --exclude "*" --include "*.html" \
-          --cache-control "no-cache"
+          --cache-control "no-cache" &
+        PID3=$!
+
+        wait $PID1 && wait $PID2 && wait $PID3
 
     - name: Remove stale sourcemaps from S3
       shell: bash
