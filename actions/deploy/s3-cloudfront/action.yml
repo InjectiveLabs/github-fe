@@ -17,7 +17,7 @@ outputs:
 runs:
   using: 'composite'
   steps:
-    - name: Sync assets with long cache to S3
+    - name: Sync hashed assets to S3
       shell: bash
       run: |
         aws s3 sync .output/public/ s3://${{ inputs.s3-bucket }}/ --follow-symlinks --delete \
