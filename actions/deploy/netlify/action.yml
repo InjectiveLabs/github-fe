@@ -1,0 +1,47 @@
+name: 'Deploy Netlify'
+description: 'Deploy build output to Netlify and extract the deploy URL.'
+
+inputs:
+  netlify-site-id:
+    description: 'Netlify site ID'
+    required: true
+  netlify-token:
+    description: 'Netlify auth token'
+    required: true
+  production:
+    description: 'Deploy to production (--prod flag)'
+    required: false
+    default: 'false'
+
+outputs:
+  deploy-url:
+    description: 'Netlify deploy URL'
+    value: ${{ steps.deploy.outputs.deploy_url }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Deploy to Netlify
+      id: deploy
+      shell: bash
+      run: |
+        PROD_FLAG=""
+        if [ "${{ inputs.production }}" = "true" ]; then
+          PROD_FLAG="--prod"
+        fi
+
+        OUTPUT=$(netlify deploy \
+          --dir ./.output/public \
+          --auth "${{ inputs.netlify-token }}" \
+          --site "${{ inputs.netlify-site-id }}" \
+          $PROD_FLAG)
+
+        echo "$OUTPUT"
+
+        if [ "${{ inputs.production }}" = "true" ]; then
+          DEPLOY_URL=$(echo "$OUTPUT" | grep "Website URL:" | sed 's/Website URL: //')
+        else
+          DEPLOY_URL=$(echo "$OUTPUT" | grep "Website draft URL:" | sed 's/Website draft URL: //')
+        fi
+
+        echo "deploy_url=$DEPLOY_URL" >> $GITHUB_OUTPUT
