@@ -34,14 +34,16 @@ runs:
           --dir ./.output/public \
           --auth "${{ inputs.netlify-token }}" \
           --site "${{ inputs.netlify-site-id }}" \
-          $PROD_FLAG)
+          $PROD_FLAG \
+          --json)
 
-        echo "$OUTPUT"
+        echo "$OUTPUT" | jq .
 
-        if [ "${{ inputs.production }}" = "true" ]; then
-          DEPLOY_URL=$(echo "$OUTPUT" | grep "Website URL:" | sed 's/Website URL: //')
-        else
-          DEPLOY_URL=$(echo "$OUTPUT" | grep "Website draft URL:" | sed 's/Website draft URL: //')
+        DEPLOY_URL=$(echo "$OUTPUT" | jq -r '.deploy_url')
+
+        if [ -z "$DEPLOY_URL" ] || [ "$DEPLOY_URL" = "null" ]; then
+          echo "::error::Failed to extract deploy URL from Netlify output"
+          exit 1
         fi
 
         echo "deploy_url=$DEPLOY_URL" >> $GITHUB_OUTPUT
