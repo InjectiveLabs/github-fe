@@ -1,0 +1,67 @@
+name: 'Deploy S3 + CloudFront'
+description: 'Sync build output to S3 with proper cache headers and invalidate CloudFront distributions.'
+
+inputs:
+  s3-bucket:
+    description: 'S3 bucket name (include path prefix if needed, e.g. my-bucket/www)'
+    required: true
+  cloudfront-distribution-ids:
+    description: 'Comma-separated CloudFront distribution IDs to invalidate'
+    required: true
+
+outputs:
+  invalidation-ids:
+    description: 'Comma-separated CloudFront invalidation IDs'
+    value: ${{ steps.invalidate.outputs.ids }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Sync assets with long cache to S3
+      shell: bash
+      run: |
+        aws s3 sync .output/public/ s3://${{ inputs.s3-bucket }}/ --follow-symlinks --delete \
+          --exclude "*.html" --exclude "*.map" \
+          --exclude "robots.txt" --exclude "favicon*" \
+          --exclude "manifest.json" --exclude "site.webmanifest" \
+          --exclude "browserconfig.xml" --exclude "sitemap.xml" \
+          --cache-control "max-age=2592000,public" \
+          --expires 2034-01-01T00:00:00Z
+
+    - name: Sync unhashed root assets to S3
+      shell: bash
+      run: |
+        aws s3 sync .output/public/ s3://${{ inputs.s3-bucket }}/ --follow-symlinks --delete \
+          --exclude "*" \
+          --include "robots.txt" --include "favicon*" \
+          --include "manifest.json" --include "site.webmanifest" \
+          --include "browserconfig.xml" --include "sitemap.xml" \
+          --cache-control "no-cache"
+
+    - name: Sync HTML to S3
+      shell: bash
+      run: |
+        aws s3 sync .output/public/ s3://${{ inputs.s3-bucket }}/ --follow-symlinks --delete \
+          --exclude "*" --include "*.html" \
+          --cache-control "no-cache"
+
+    - name: Remove stale sourcemaps from S3
+      shell: bash
+      run: |
+        aws s3 rm s3://${{ inputs.s3-bucket }}/ --recursive \
+          --exclude "*" --include "*.map"
+
+    - name: Invalidate CloudFront
+      id: invalidate
+      shell: bash
+      run: |
+        IDS=""
+        IFS=',' read -ra DIST_IDS <<< "${{ inputs.cloudfront-distribution-ids }}"
+        for dist_id in "${DIST_IDS[@]}"; do
+          dist_id=$(echo "$dist_id" | xargs)
+          [ -z "$dist_id" ] && continue
+          echo "Invalidating distribution: $dist_id"
+          result=$(aws cloudfront create-invalidation --distribution-id="$dist_id" --paths "/*" --query 'Invalidation.Id' --output text)
+          IDS="${IDS:+$IDS,}$result"
+        done
+        echo "ids=$IDS" >> $GITHUB_OUTPUT

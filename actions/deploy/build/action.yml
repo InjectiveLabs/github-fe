@@ -1,0 +1,64 @@
+name: 'Deploy Build'
+description: 'Checkout, install Node + pnpm, install dependencies, run security scan, build a Nuxt app, and verify the output.'
+
+inputs:
+  ref:
+    description: 'Branch or SHA to check out (empty = default branch)'
+    required: false
+    default: ''
+  install-netlify:
+    description: 'Install netlify-cli@17.36.4 globally'
+    required: false
+    default: 'false'
+
+outputs:
+  build-status:
+    description: 'Build result: success or failed'
+    value: ${{ steps.build.outcome }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Checkout code
+      uses: useblacksmith/checkout@v1
+      with:
+        fetch-depth: 1
+        ref: ${{ inputs.ref || github.ref }}
+
+    - name: Setup Node.js
+      uses: useblacksmith/setup-node@v5
+      with:
+        node-version-file: '.nvmrc'
+
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v4
+      with:
+        version: 10
+
+    - name: Install Netlify CLI
+      if: inputs.install-netlify == 'true'
+      shell: bash
+      run: npm install netlify-cli@17.36.4 -g
+
+    - name: Install dependencies
+      shell: bash
+      env:
+        NODE_OPTIONS: ${{ env.DEPLOY_NODE_OPTIONS || '--max_old_space_size=30720' }}
+      run: pnpm install --no-frozen-lockfile
+
+    - name: Security scan
+      uses: InjectiveLabs/github-fe/actions/security-scan@master
+
+    - name: Build app
+      id: build
+      shell: bash
+      env:
+        NODE_OPTIONS: ${{ env.DEPLOY_NODE_OPTIONS || '--max_old_space_size=30720' }}
+      run: pnpm clean-up && pnpm generate
+
+    - name: Verify build output
+      shell: bash
+      run: |
+        test -f .output/public/index.html || { echo "::error::.output/public/index.html missing — build failed"; exit 1; }
+        test -d .output/public/_nuxt || { echo "::error::.output/public/_nuxt/ missing — build failed"; exit 1; }
+        echo "Build verified: .output/public/index.html and .output/public/_nuxt/ exist"
