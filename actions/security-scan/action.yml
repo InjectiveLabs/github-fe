@@ -105,9 +105,6 @@ runs:
           echo "::endgroup::"
         fi
 
-        # Cleanup
-        rm -rf "$DETECTOR_DIR"
-
         if [ $SCAN_EXIT -eq 0 ]; then
           echo "::notice::Security scan passed — no compromised or vulnerable packages detected."
         elif [ $SCAN_EXIT -eq 2 ]; then

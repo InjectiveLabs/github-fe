@@ -31,14 +31,14 @@ runs:
       shell: bash
       run: npm install netlify-cli@17.36.4 -g
 
+    - name: Security scan
+      uses: InjectiveLabs/github-fe/actions/security-scan@master
+
     - name: Install dependencies
       shell: bash
       env:
         NODE_OPTIONS: ${{ env.DEPLOY_NODE_OPTIONS || '--max_old_space_size=30720' }}
       run: pnpm install --no-frozen-lockfile
-
-    - name: Security scan
-      uses: InjectiveLabs/github-fe/actions/security-scan@master
 
     - name: Build app
       id: build
