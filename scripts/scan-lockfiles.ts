@@ -6,7 +6,7 @@ import { parse as parseYaml } from 'yaml'
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
-const DETECTOR_SHA = '385da712193756a2e0a2e4be513587f3f506b334'
+const DETECTOR_SHA = '18354e18d18b6e8044ff99a96720a76b7651ef20'
 const UPSTREAM_URL = `https://raw.githubusercontent.com/Cobenian/shai-hulud-detect/${DETECTOR_SHA}/compromised-packages.txt`
 const CACHE_DIR = join(tmpdir(), 'shai-hulud-scanner')
 const CACHE_FILE = join(CACHE_DIR, `compromised-packages-${DETECTOR_SHA}.txt`)
