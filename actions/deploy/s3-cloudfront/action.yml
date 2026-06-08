@@ -22,6 +22,7 @@ runs:
       run: |
         aws s3 sync .output/public/ s3://${{ inputs.s3-bucket }}/ --follow-symlinks \
           --exclude "*.html" --exclude "*.map" \
+          --exclude "_nuxt/builds/*" --exclude "_nuxt/manifest.json" \
           --exclude "robots.txt" --exclude "favicon*" \
           --exclude "manifest.json" --exclude "site.webmanifest" \
           --exclude "browserconfig.xml" --exclude "sitemap.xml" \
@@ -37,6 +38,7 @@ runs:
 
         aws s3 sync .output/public/ s3://${{ inputs.s3-bucket }}/ --follow-symlinks \
           --exclude "*" \
+          --include "_nuxt/builds/*" --include "_nuxt/manifest.json" \
           --include "robots.txt" --include "favicon*" \
           --include "manifest.json" --include "site.webmanifest" \
           --include "browserconfig.xml" --include "sitemap.xml" \
@@ -47,6 +49,7 @@ runs:
       run: |
         aws s3 sync .output/public/ s3://${{ inputs.s3-bucket }}/ --follow-symlinks --delete \
           --exclude "cf-logs/*" \
+          --exclude "_nuxt/*" \
           --exclude "*.html" --exclude "*.map" \
           --exclude "robots.txt" --exclude "favicon*" \
           --exclude "manifest.json" --exclude "site.webmanifest" \
