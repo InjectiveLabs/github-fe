@@ -11,7 +11,7 @@ runs:
   using: 'composite'
   steps:
     - name: Cache Shai-Hulud detector
-      uses: actions/cache@v4
+      uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
       with:
         path: /tmp/shai-hulud-detect
         key: shai-hulud-18354e18d18b6e8044ff99a96720a76b7651ef20
