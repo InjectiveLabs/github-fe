@@ -1,51 +1,51 @@
 name: 'Devnet Release'
-description: 'SSH into devnet, pull latest from dev branch, and rebuild the app'
+description: 'Check out the caller repository and verify that pnpm generate completes successfully'
 
 inputs:
   source_dir:
-    description: 'Absolute path to the project directory on the devnet server'
-    required: true
+    description: 'Deprecated compatibility input. Ignored.'
+    required: false
   ssh_host:
-    description: 'Devnet SSH host'
-    required: true
+    description: 'Deprecated compatibility input. Ignored.'
+    required: false
   ssh_user:
-    description: 'Devnet SSH user'
-    required: true
+    description: 'Deprecated compatibility input. Ignored.'
+    required: false
   ssh_key:
-    description: 'Devnet SSH private key'
-    required: true
+    description: 'Deprecated compatibility input. Ignored.'
+    required: false
 
 runs:
   using: 'composite'
   steps:
-    - name: Configure SSH
-      run: |
-        mkdir -p ~/.ssh
-        echo "${{ inputs.ssh_key }}" > ~/.ssh/devnet.key
-        chmod 600 ~/.ssh/devnet.key
-        cat >>~/.ssh/config <<EOF
-        Host devnet
-          HostName ${{ inputs.ssh_host }}
-          User ${{ inputs.ssh_user }}
-          IdentityFile ~/.ssh/devnet.key
-          StrictHostKeyChecking no
-        EOF
-      shell: bash
+    - name: Check out repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 1
+        ref: ${{ github.sha }}
 
-    - name: Check out the source
-      run: ssh devnet 'cd '"${{ inputs.source_dir }}"' && git stash && git stash clear && git pull'
-      shell: bash
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v4
+      with:
+        version: 10
 
-    - name: Flush pnpm cache
-      run: ssh devnet 'source $HOME/.nvm/nvm.sh && cd '"${{ inputs.source_dir }}"' && rm -rf node_modules && rm pnpm-lock.yaml'
-      shell: bash
+    - name: Setup Node.js
+      uses: useblacksmith/setup-node@v5
+      with:
+        node-version-file: '.nvmrc'
+        cache: 'pnpm'
 
     - name: Install dependencies
-      run: ssh devnet 'source $HOME/.nvm/nvm.sh && cd '"${{ inputs.source_dir }}"' && pnpm install'
       shell: bash
+      run: pnpm install --no-frozen-lockfile
 
-    - name: Build app
-      run: ssh devnet 'source $HOME/.nvm/nvm.sh && cd '"${{ inputs.source_dir }}"' && pnpm clean-up && pnpm generate'
+    - name: Verify generate build
       shell: bash
-      env:
-        NODE_OPTIONS: '--max_old_space_size=15360'
+      run: pnpm generate
+
+    - name: Verify build output
+      shell: bash
+      run: |
+        test -f .output/public/index.html || { echo "::error::.output/public/index.html missing - build failed"; exit 1; }
+        test -d .output/public/_nuxt || { echo "::error::.output/public/_nuxt/ missing - build failed"; exit 1; }
+        echo "Build verified: .output/public/index.html and .output/public/_nuxt/ exist"
