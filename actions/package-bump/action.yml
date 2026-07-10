@@ -19,10 +19,6 @@ inputs:
     description: 'Seconds to wait for npm package propagation before installing'
     required: false
     default: '30'
-  post_install_command:
-    description: 'Optional command to run after installing dependencies'
-    required: false
-    default: ''
 
 runs:
   using: 'composite'
@@ -62,17 +58,6 @@ runs:
           cd tmp
         fi
         pnpm install
-
-    - name: Run post-install command
-      if: inputs.post_install_command != ''
-      shell: bash
-      run: |
-        if [ -n "${{ inputs.folder_path }}" ]; then
-          cd "tmp/${{ inputs.folder_path }}"
-        else
-          cd tmp
-        fi
-        ${{ inputs.post_install_command }}
 
     - name: Prepare Nuxt
       shell: bash

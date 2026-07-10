@@ -1,0 +1,155 @@
+name: 'Package bump make PR'
+description: 'Package bump and open or update a pull request'
+
+inputs:
+  gh_token:
+    description: 'GitHub token'
+    required: true
+  folder_path:
+    description: 'Folder path'
+    required: false
+  repository_url:
+    description: 'Repository url'
+    required: true
+  repository_branch:
+    description: 'Repository base branch'
+    required: false
+    default: 'dev'
+  pull_request_branch:
+    description: 'Branch to push package bump changes to'
+    required: false
+    default: 'chore/package-bump'
+  pull_request_title:
+    description: 'Pull request title'
+    required: false
+    default: 'chore: package bump'
+  pull_request_body:
+    description: 'Pull request body'
+    required: false
+    default: 'Automated package bump.'
+  commit_message:
+    description: 'Commit message'
+    required: false
+    default: 'chore: package bump'
+  propagation_delay:
+    description: 'Seconds to wait for npm package propagation before installing'
+    required: false
+    default: '30'
+  post_install_command:
+    description: 'Optional command to run after installing dependencies'
+    required: false
+    default: ''
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Wait for npm propagation
+      shell: bash
+      run: |
+        DELAY="${{ inputs.propagation_delay }}"
+        echo "Waiting ${DELAY}s for npm package propagation..."
+        sleep "$DELAY"
+
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        path: tmp
+        token: ${{ inputs.gh_token }}
+        repository: ${{ inputs.repository_url }}
+        ref: ${{ inputs.repository_branch }}
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 24.4.0
+
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v4
+      with:
+        version: '10'
+
+    - name: Install dependencies
+      shell: bash
+      run: |
+        if [ -n "${{ inputs.folder_path }}" ]; then
+          cd "tmp/${{ inputs.folder_path }}"
+        else
+          cd tmp
+        fi
+        pnpm install
+
+    - name: Run post-install command
+      if: inputs.post_install_command != ''
+      shell: bash
+      run: |
+        if [ -n "${{ inputs.folder_path }}" ]; then
+          cd "tmp/${{ inputs.folder_path }}"
+        else
+          cd tmp
+        fi
+        ${{ inputs.post_install_command }}
+
+    - name: Prepare Nuxt
+      shell: bash
+      run: |
+        if [ -n "${{ inputs.folder_path }}" ]; then
+          cd "tmp/${{ inputs.folder_path }}"
+        else
+          cd tmp
+        fi
+
+        # Only run nuxi prepare if this is a Nuxt project
+        if [ -f "nuxt.config.ts" ] || [ -f "nuxt.config.js" ]; then
+          echo "Nuxt config found, running nuxi prepare..."
+          npx nuxi prepare
+        else
+          echo "No Nuxt config found, skipping nuxi prepare"
+        fi
+
+    - name: Create or update pull request
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.gh_token }}
+        REPOSITORY_URL: ${{ inputs.repository_url }}
+        BASE_BRANCH: ${{ inputs.repository_branch }}
+        PR_BRANCH: ${{ inputs.pull_request_branch }}
+        PR_TITLE: ${{ inputs.pull_request_title }}
+        PR_BODY: ${{ inputs.pull_request_body }}
+        COMMIT_MESSAGE: ${{ inputs.commit_message }}
+      run: |
+        cd tmp
+        git config user.name "${{ github.actor }}"
+        git config user.email "${{ github.actor }}@users.noreply.github.com"
+
+        # Check if there are any changes to commit
+        if [ -z "$(git status --porcelain)" ]; then
+          echo "No changes to commit"
+          exit 0
+        fi
+
+        git fetch origin "${PR_BRANCH}:refs/remotes/origin/${PR_BRANCH}" || true
+        git checkout -B "${PR_BRANCH}"
+        git add .
+        git commit -m "${COMMIT_MESSAGE}"
+        git push --force-with-lease origin "HEAD:${PR_BRANCH}"
+
+        existing_pr_url="$(gh pr list \
+          --repo "${REPOSITORY_URL}" \
+          --head "${PR_BRANCH}" \
+          --base "${BASE_BRANCH}" \
+          --state open \
+          --json url \
+          --jq '.[0].url // empty')"
+
+        if [ -n "${existing_pr_url}" ]; then
+          echo "Updated existing pull request: ${existing_pr_url}"
+          exit 0
+        fi
+
+        gh pr create \
+          --repo "${REPOSITORY_URL}" \
+          --base "${BASE_BRANCH}" \
+          --head "${PR_BRANCH}" \
+          --title "${PR_TITLE}" \
+          --body "${PR_BODY}"
