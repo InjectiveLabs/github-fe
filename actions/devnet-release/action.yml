@@ -43,13 +43,13 @@ runs:
       shell: bash
       run: pnpm generate
 
-    - name: Verify typecheck
-      shell: bash
-      run: pnpm typecheck
-
     - name: Verify build output
       shell: bash
       run: |
         test -f .output/public/index.html || { echo "::error::.output/public/index.html missing - build failed"; exit 1; }
         test -d .output/public/_nuxt || { echo "::error::.output/public/_nuxt/ missing - build failed"; exit 1; }
         echo "Build verified: .output/public/index.html and .output/public/_nuxt/ exist"
+
+    - name: Verify typecheck
+      shell: bash
+      run: pnpm typecheck
