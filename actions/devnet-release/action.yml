@@ -43,6 +43,10 @@ runs:
       shell: bash
       run: pnpm generate
 
+    - name: Verify typecheck
+      shell: bash
+      run: pnpm typecheck
+
     - name: Verify build output
       shell: bash
       run: |
