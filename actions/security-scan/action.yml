@@ -14,7 +14,7 @@ runs:
       uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
       with:
         path: /tmp/shai-hulud-detect
-        key: shai-hulud-18354e18d18b6e8044ff99a96720a76b7651ef20
+        key: shai-hulud-0b5d50b64ca7442b1259a41cc7d8f8a0ef398c1c
 
     - name: Supply chain security scan (Shai-Hulud Detector)
       shell: bash
@@ -22,8 +22,8 @@ runs:
         echo "::group::Supply chain security scan (Shai-Hulud Detector)"
         echo "Scanning directory: ${{ inputs.directory }}"
 
-        # Pin to audited commit (May 22, 2026)
-        DETECTOR_SHA="18354e18d18b6e8044ff99a96720a76b7651ef20"
+        # Pin to audited commit (August 4, 2026)
+        DETECTOR_SHA="0b5d50b64ca7442b1259a41cc7d8f8a0ef398c1c"
         DETECTOR_DIR="/tmp/shai-hulud-detect"
 
         if [ ! -d "$DETECTOR_DIR/.git" ]; then
