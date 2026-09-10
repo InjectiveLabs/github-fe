@@ -89,9 +89,24 @@ runs:
             body = `${body.slice(0, limit)}\n\n_Review output truncated._`
           }
 
-          await github.rest.issues.createComment({
+          const postComment = (comment) => github.rest.issues.createComment({
             owner: context.repo.owner,
             repo: context.repo.repo,
             issue_number: pullNumber,
-            body,
+            body: comment,
           })
+
+          try {
+            await postComment(body)
+          } catch (error) {
+            const requestId = error.response?.headers?.['x-github-request-id'] || 'unavailable'
+            core.warning(`Codex review comment failed: status=${error.status || 'unknown'} bytes=${Buffer.byteLength(body, 'utf8')} request_id=${requestId}`)
+            await core.summary.addHeading('Codex review').addRaw(body).write()
+
+            try {
+              await postComment(`⚠️ Codex completed its review, but GitHub could not publish the full result. View the job summary: ${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`)
+            } catch (fallbackError) {
+              core.error(`Codex review fallback comment failed: status=${fallbackError.status || 'unknown'} request_id=${fallbackError.response?.headers?.['x-github-request-id'] || 'unavailable'}`)
+              throw fallbackError
+            }
+          }
