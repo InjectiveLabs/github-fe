@@ -47,7 +47,7 @@ runs:
           count, any uninspected paths, and whether the review was complete or prioritized.
 
           File references must use this format:
-          `[${{ github.event.repository.name }}/path/to/file.ts:42](${{ github.event.repository.name }}/path/to/file.ts:42)`.
+          `[${{ github.repository }}/path/to/file.ts:42](${{ github.server_url }}/${{ github.repository }}/blob/${{ github.sha }}/path/to/file.ts#L42)`.
 
     - name: Post Codex review comment
       if: always() && (steps.scope.outputs.reviewable == 'true' || steps.scope.outputs.skip-reason == 'limit')

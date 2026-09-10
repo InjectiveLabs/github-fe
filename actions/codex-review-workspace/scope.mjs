@@ -38,11 +38,17 @@ export function parseNameStatus(output) {
 }
 
 export function countChangedLines(output) {
-  return output.toString('utf8').split('\n').reduce((total, line) => {
-    const [added, deleted, file] = line.split('\t')
-    if (!file || !isReviewable(file)) return total
-    return total + (Number(added) || 0) + (Number(deleted) || 0)
-  }, 0)
+  const fields = output.toString('utf8').split('\0')
+  fields.pop()
+  let total = 0
+
+  for (let index = 0; index < fields.length; index += 1) {
+    const [added, deleted, file] = fields[index].split('\t')
+    const destination = file || fields[index += 2]
+    if (isReviewable(destination)) total += (Number(added) || 0) + (Number(deleted) || 0)
+  }
+
+  return total
 }
 
 function git(workspace, args) {
@@ -71,7 +77,7 @@ export function createManifest(workspace) {
   const head = revision(workspace, 'HEAD', 'codex-review-workspace could not resolve HEAD.')
   const changed = parseNameStatus(git(workspace, ['diff', '--name-status', '-z', '-M', 'HEAD^1', 'HEAD']))
   const files = changed.filter(({ path: file }) => isReviewable(file))
-  const changedLines = countChangedLines(git(workspace, ['diff', '--numstat', '--no-renames', 'HEAD^1', 'HEAD']))
+  const changedLines = countChangedLines(git(workspace, ['diff', '--numstat', '-z', '-M', 'HEAD^1', 'HEAD']))
   const gitPath = git(workspace, ['rev-parse', '--git-path', 'codex-review-files.json']).toString('utf8').trim()
   const manifestPath = path.isAbsolute(gitPath) ? gitPath : path.resolve(workspace, gitPath)
 

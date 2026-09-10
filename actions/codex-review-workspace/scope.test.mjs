@@ -36,7 +36,7 @@ test('preserves rename paths from Git name-status output', () => {
 })
 
 test('counts only reviewable changed lines', () => {
-  const numstat = Buffer.from('3\t2\tsrc/app.ts\n10\t5\tpnpm-lock.yaml\n-\t-\tpublic/logo.png\n')
+  const numstat = Buffer.from('3\t2\tsrc/app.ts\x0010\t5\tpnpm-lock.yaml\x00-\t-\tpublic/logo.png\x00')
   assert.equal(countChangedLines(numstat), 5)
 })
 
@@ -64,6 +64,32 @@ test('writes a filtered manifest for a merge commit', () => {
     assert.deepEqual(files, [{ path: 'app.ts', status: 'M' }])
     assert.equal(changedLines, 2)
     assert.deepEqual(JSON.parse(readFileSync(manifestPath, 'utf8')).files, files)
+  } finally {
+    rmSync(workspace, { force: true, recursive: true })
+  }
+})
+
+test('does not count a pure rename of a file larger than the review line limit', () => {
+  const workspace = mkdtempSync(path.join(tmpdir(), 'codex-review-workspace-'))
+  const git = (...args) => execFileSync('git', args, { cwd: workspace })
+
+  try {
+    git('init', '--initial-branch=main')
+    git('config', 'user.email', 'test@example.com')
+    git('config', 'user.name', 'Test')
+    git('config', 'commit.gpgsign', 'false')
+    writeFileSync(path.join(workspace, 'old.ts'), 'line\n'.repeat(15001))
+    git('add', '.')
+    git('commit', '-m', 'base')
+    git('checkout', '-b', 'feature')
+    git('mv', 'old.ts', 'new.ts')
+    git('commit', '-m', 'rename')
+    git('checkout', 'main')
+    git('merge', '--no-ff', 'feature', '-m', 'merge rename')
+
+    const { changedLines, files } = createManifest(workspace)
+    assert.equal(changedLines, 0)
+    assert.deepEqual(files, [{ path: 'new.ts', previousPath: 'old.ts', status: 'R100' }])
   } finally {
     rmSync(workspace, { force: true, recursive: true })
   }
