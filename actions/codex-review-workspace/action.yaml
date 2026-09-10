@@ -50,12 +50,13 @@ runs:
           `[${{ github.repository }}/path/to/file.ts:42](${{ github.server_url }}/${{ github.repository }}/blob/${{ github.sha }}/path/to/file.ts#L42)`.
 
     - name: Post Codex review comment
-      if: always() && (steps.scope.outputs.reviewable == 'true' || steps.scope.outputs.skip-reason == 'limit')
+      if: always() && (steps.scope.outcome == 'failure' || steps.scope.outputs.reviewable == 'true' || steps.scope.outputs.skip-reason == 'limit')
       uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
       env:
         CODEX_OUTPUT_FILE: ${{ runner.temp }}/codex-review-workspace.md
         PR_NUMBER: ${{ inputs.pr-number }}
         CODEX_OUTCOME: ${{ steps.codex.outcome }}
+        SCOPE_OUTCOME: ${{ steps.scope.outcome }}
         SKIP_REASON: ${{ steps.scope.outputs.skip-reason }}
         CANDIDATE_COUNT: ${{ steps.scope.outputs.candidate-count }}
         CHANGED_LINES: ${{ steps.scope.outputs.changed-lines }}
@@ -67,7 +68,9 @@ runs:
           const pullNumber = Number(process.env.PR_NUMBER)
           let body
 
-          if (process.env.SKIP_REASON === 'limit') {
+          if (process.env.SCOPE_OUTCOME === 'failure') {
+            body = '⚠️ Codex review could not prepare the PR workspace. Please check the workflow logs.'
+          } else if (process.env.SKIP_REASON === 'limit') {
             body = `⚠️ Codex review skipped: ${process.env.CANDIDATE_COUNT} reviewable files / ${process.env.CHANGED_LINES} changed lines\nexceed the automated-review limit (150 files / 15,000 lines).\nPlease split this PR.`
           } else if (process.env.CODEX_OUTCOME !== 'success') {
             body = '⚠️ Codex review did not complete. Please check the workflow logs.'
