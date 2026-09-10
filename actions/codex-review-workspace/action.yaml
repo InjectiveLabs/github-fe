@@ -62,6 +62,7 @@ runs:
         CHANGED_LINES: ${{ steps.scope.outputs.changed-lines }}
       with:
         github-token: ${{ inputs.github-token }}
+        retries: 2
         script: |
           const fs = require('fs')
 
