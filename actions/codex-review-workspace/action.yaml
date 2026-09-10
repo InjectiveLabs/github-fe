@@ -1,0 +1,93 @@
+name: Codex Workspace Review
+description: Review a pull request from its checked-out merge workspace and post Codex findings
+
+inputs:
+  github-token:
+    description: GitHub token with permission to create pull request comments
+    required: true
+  openai-api-key:
+    description: OpenAI API key for Codex
+    required: true
+  pr-number:
+    description: Pull request number to comment on
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Create review manifest
+      id: scope
+      shell: bash
+      run: node "${{ github.action_path }}/scope.mjs"
+
+    - name: Run Codex review
+      id: codex
+      if: steps.scope.outputs.reviewable == 'true'
+      continue-on-error: true
+      uses: openai/codex-action@f367b1e9572fd064ea71ef925ca24ee0f01080af # v1
+      with:
+        openai-api-key: ${{ inputs.openai-api-key }}
+        model: gpt-5.3-codex
+        effort: high
+        sandbox: read-only
+        output-file: ${{ runner.temp }}/codex-review-workspace.md
+        prompt: |
+          Review the pull request checked out in this workspace.
+
+          The filtered changed-file manifest is at `.git/codex-review-files.json`.
+          Review only paths in that manifest. Use `git diff HEAD^1 HEAD -- <path>`
+          to inspect each relevant change, and read surrounding workspace code when needed.
+
+          Look for correctness, security, performance, edge cases, and maintainability
+          regressions. Do not report style-only observations. Return at most 20 actionable
+          findings, ordered by severity. If there are no findings, start the response with
+          `LGTM` and include the Coverage section below.
+
+          Include a final `Coverage` section with the candidate-file count, inspected-file
+          count, any uninspected paths, and whether the review was complete or prioritized.
+
+          File references must use this format:
+          `[${{ github.repository }}/path/to/file.ts:42](${{ github.server_url }}/${{ github.repository }}/blob/${{ github.sha }}/path/to/file.ts#L42)`.
+
+    - name: Post Codex review comment
+      if: always() && (steps.scope.outputs.reviewable == 'true' || steps.scope.outputs.skip-reason == 'limit')
+      uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+      env:
+        CODEX_OUTPUT_FILE: ${{ runner.temp }}/codex-review-workspace.md
+        PR_NUMBER: ${{ inputs.pr-number }}
+        CODEX_OUTCOME: ${{ steps.codex.outcome }}
+        SKIP_REASON: ${{ steps.scope.outputs.skip-reason }}
+        CANDIDATE_COUNT: ${{ steps.scope.outputs.candidate-count }}
+        CHANGED_LINES: ${{ steps.scope.outputs.changed-lines }}
+      with:
+        github-token: ${{ inputs.github-token }}
+        script: |
+          const fs = require('fs')
+
+          const pullNumber = Number(process.env.PR_NUMBER)
+          let body
+
+          if (process.env.SKIP_REASON === 'limit') {
+            body = `⚠️ Codex review skipped: ${process.env.CANDIDATE_COUNT} reviewable files / ${process.env.CHANGED_LINES} changed lines\nexceed the automated-review limit (150 files / 15,000 lines).\nPlease split this PR.`
+          } else if (process.env.CODEX_OUTCOME !== 'success') {
+            body = '⚠️ Codex review did not complete. Please check the workflow logs.'
+          } else if (!fs.existsSync(process.env.CODEX_OUTPUT_FILE)) {
+            body = '⚠️ Codex review completed without an output file. Please check the workflow logs.'
+          } else {
+            let raw = fs.readFileSync(process.env.CODEX_OUTPUT_FILE, 'utf8').trim()
+            raw = raw.replace(/\/home\/runner\/work\/[^\/]+\//g, '')
+            raw = raw.replace(/\[([^\]\/\n]+\.[a-z]{1,4}(?::\d+)?)\]\(([^)]*\/[^)]+)\)/g, (match, text, href) => `[${href}](${href})`)
+            body = raw || '⚠️ Codex review returned empty output. Please check the workflow logs.'
+          }
+
+          const limit = 60000
+          if (body.length > limit) {
+            body = `${body.slice(0, limit)}\n\n_Review output truncated._`
+          }
+
+          await github.rest.issues.createComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: pullNumber,
+            body,
+          })
