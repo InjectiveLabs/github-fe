@@ -1,10 +1,5 @@
-name: Codex Workspace Review
-description: Review a pull request from its checked-out merge workspace
-
-inputs:
-  openai-api-key:
-    description: OpenAI API key for Codex
-    required: true
+name: Prepare Codex Workspace Review
+description: Prepare a filtered pull request workspace and prompt for Codex
 
 outputs:
   reviewable:
@@ -19,12 +14,12 @@ outputs:
   changed-lines:
     description: Number of changed lines in reviewable files
     value: ${{ steps.scope.outputs.changed-lines }}
-  codex-outcome:
-    description: Outcome of the Codex review step
-    value: ${{ steps.codex.outcome }}
+  prompt-file:
+    description: Path to the generated Codex review prompt
+    value: ${{ steps.review-files.outputs.prompt-file }}
   review-file:
-    description: Path to Codex's review output file
-    value: ${{ steps.review-file.outputs.path }}
+    description: Path where Codex should write its review
+    value: ${{ steps.review-files.outputs.review-file }}
 
 runs:
   using: composite
@@ -34,37 +29,13 @@ runs:
       shell: bash
       run: node "${{ github.action_path }}/scope.mjs"
 
-    - name: Run Codex review
-      id: codex
-      if: steps.scope.outputs.reviewable == 'true'
-      continue-on-error: true
-      uses: openai/codex-action@f367b1e9572fd064ea71ef925ca24ee0f01080af # v1
-      with:
-        openai-api-key: ${{ inputs.openai-api-key }}
-        model: gpt-5.3-codex
-        effort: high
-        sandbox: read-only
-        output-file: ${{ runner.temp }}/codex-review-workspace.md
-        prompt: |
-          Review the pull request checked out in this workspace.
-
-          The filtered changed-file manifest is at `.git/codex-review-files.json`.
-          Review only paths in that manifest. Use `git diff HEAD^1 HEAD -- <path>`
-          to inspect each relevant change, and read surrounding workspace code when needed.
-
-          Look for correctness, security, performance, edge cases, and maintainability
-          regressions. Do not report style-only observations. Return at most 20 actionable
-          findings, ordered by severity. If there are no findings, start the response with
-          `LGTM` and include the Coverage section below.
-
-          Include a final `Coverage` section with the candidate-file count, inspected-file
-          count, any uninspected paths, and whether the review was complete or prioritized.
-
-          File references must use this format:
-          `[${{ github.repository }}/path/to/file.ts:42](${{ github.server_url }}/${{ github.repository }}/blob/${{ github.sha }}/path/to/file.ts#L42)`.
-
-    - name: Expose review file
-      id: review-file
+    - name: Prepare review files
+      id: review-files
       if: always()
       shell: bash
-      run: echo "path=${RUNNER_TEMP}/codex-review-workspace.md" >> "$GITHUB_OUTPUT"
+      run: |
+        prompt_file="${RUNNER_TEMP}/codex-review-workspace-prompt.md"
+        review_file="${RUNNER_TEMP}/codex-review-workspace.md"
+        node "${{ github.action_path }}/prompt.mjs" "$prompt_file"
+        echo "prompt-file=$prompt_file" >> "$GITHUB_OUTPUT"
+        echo "review-file=$review_file" >> "$GITHUB_OUTPUT"
