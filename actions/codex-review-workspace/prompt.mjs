@@ -18,10 +18,11 @@ to inspect each relevant change, and read surrounding workspace code when needed
 Look for correctness, security, performance, edge cases, and maintainability
 regressions. Do not report style-only observations. Return at most 20 actionable
 findings, ordered by severity. If there are no findings, start the response with
-\`LGTM\` and include the Coverage section below.
+\`LGTM\` and include the coverage line below.
 
-Include a final \`Coverage\` section with the candidate-file count, inspected-file
-count, any uninspected paths, and whether the review was complete or prioritized.
+End with one compact coverage line: \`Coverage: <inspected>/<candidate> files
+reviewed.\` Only add \`Unreviewed: <paths>.\` when not every candidate file
+was inspected.
 
 File references must use this format:
 \`[${repository}/path/to/file.ts:42](${serverUrl}/${repository}/blob/${sha}/path/to/file.ts#L42)\`.

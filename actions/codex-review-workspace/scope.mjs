@@ -67,12 +67,12 @@ export function createManifest(workspace) {
   const base = revision(
     workspace,
     'HEAD^1',
-    'codex-review-workspace requires the PR merge commit. Check out refs/pull/<number>/merge with fetch-depth: 0.',
+    'codex-review-workspace requires the PR merge commit and its base parent.',
   )
   revision(
     workspace,
     'HEAD^2',
-    'codex-review-workspace requires a merge commit with both parents. Check out refs/pull/<number>/merge with fetch-depth: 0.',
+    'codex-review-workspace requires a merge commit with both parents.',
   )
   const head = revision(workspace, 'HEAD', 'codex-review-workspace could not resolve HEAD.')
   const changed = parseNameStatus(git(workspace, ['diff', '--name-status', '-z', '-M', 'HEAD^1', 'HEAD']))

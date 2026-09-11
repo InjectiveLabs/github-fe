@@ -1,7 +1,10 @@
 name: Codex Workspace Review
-description: Review a filtered pull request from its checked-out merge workspace
+description: Check out and review a filtered pull request merge workspace
 
 inputs:
+  pull-request-number:
+    description: Pull request number to review
+    required: true
   openai-api-key:
     description: OpenAI API key for Codex
     required: true
@@ -32,6 +35,13 @@ outputs:
 runs:
   using: composite
   steps:
+    - name: Check out PR merge commit
+      uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      with:
+        ref: refs/pull/${{ inputs.pull-request-number }}/merge
+        fetch-depth: 2
+        persist-credentials: false
+
     - name: Create review manifest
       id: scope
       shell: bash
@@ -39,7 +49,7 @@ runs:
 
     - name: Prepare review files
       id: review-files
-      if: always()
+      if: steps.scope.outputs.reviewable == 'true'
       shell: bash
       run: |
         prompt_file="${RUNNER_TEMP}/codex-review-workspace-prompt.md"
@@ -53,8 +63,6 @@ runs:
       if: steps.scope.outputs.reviewable == 'true'
       continue-on-error: true
       uses: openai/codex-action@52fe01ec70a42f454c9d2ebd47598f9fd6893d56 # v1.11; v1.12 can hang after final output
-      env:
-        RUST_LOG: info
       with:
         openai-api-key: ${{ inputs.openai-api-key }}
         model: gpt-5.3-codex

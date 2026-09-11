@@ -4,7 +4,20 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
+import { parse } from 'yaml'
 import { countChangedLines, createManifest, isReviewable, parseNameStatus } from './scope.mjs'
+
+test('checks out the PR merge commit with both parents available', () => {
+  const action = parse(readFileSync(new URL('./action.yaml', import.meta.url), 'utf8'))
+  const checkout = action.runs.steps.find(
+    (step) => step.name === 'Check out PR merge commit'
+  )
+
+  assert.equal(action.inputs['pull-request-number'].required, true)
+  assert.equal(checkout.with.ref, 'refs/pull/${{ inputs.pull-request-number }}/merge')
+  assert.equal(checkout.with['fetch-depth'], 2)
+  assert.equal(checkout.with['persist-credentials'], false)
+})
 
 test('filters lockfiles, generated/vendor code, and binary assets', () => {
   for (const file of [
