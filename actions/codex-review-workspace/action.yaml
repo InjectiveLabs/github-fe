@@ -1,5 +1,10 @@
-name: Prepare Codex Workspace Review
-description: Prepare a filtered pull request workspace and prompt for Codex
+name: Codex Workspace Review
+description: Review a filtered pull request from its checked-out merge workspace
+
+inputs:
+  openai-api-key:
+    description: OpenAI API key for Codex
+    required: true
 
 outputs:
   reviewable:
@@ -14,6 +19,9 @@ outputs:
   changed-lines:
     description: Number of changed lines in reviewable files
     value: ${{ steps.scope.outputs.changed-lines }}
+  codex-outcome:
+    description: Outcome of the Codex review step
+    value: ${{ steps.codex.outcome }}
   prompt-file:
     description: Path to the generated Codex review prompt
     value: ${{ steps.review-files.outputs.prompt-file }}
@@ -39,3 +47,32 @@ runs:
         node "${{ github.action_path }}/prompt.mjs" "$prompt_file"
         echo "prompt-file=$prompt_file" >> "$GITHUB_OUTPUT"
         echo "review-file=$review_file" >> "$GITHUB_OUTPUT"
+
+    - name: Run Codex review
+      id: codex
+      if: steps.scope.outputs.reviewable == 'true'
+      continue-on-error: true
+      uses: openai/codex-action@52fe01ec70a42f454c9d2ebd47598f9fd6893d56 # v1.11; v1.12 can hang after final output
+      env:
+        RUST_LOG: info
+      with:
+        openai-api-key: ${{ inputs.openai-api-key }}
+        model: gpt-5.3-codex
+        effort: high
+        sandbox: read-only
+        prompt-file: ${{ steps.review-files.outputs.prompt-file }}
+        output-file: ${{ steps.review-files.outputs.review-file }}
+
+    - name: Log Codex review completion
+      if: always() && steps.scope.outputs.reviewable == 'true'
+      shell: bash
+      env:
+        CODEX_OUTCOME: ${{ steps.codex.outcome }}
+        REVIEW_FILE: ${{ steps.review-files.outputs.review-file }}
+      run: |
+        echo "Codex action finished with outcome: $CODEX_OUTCOME"
+        if [[ -f "$REVIEW_FILE" ]]; then
+          wc -c "$REVIEW_FILE"
+        else
+          echo "Codex review output file is missing: $REVIEW_FILE"
+        fi
