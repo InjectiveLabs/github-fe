@@ -68,6 +68,11 @@ runs:
         prompt-file: ${{ steps.review-files.outputs.prompt-file }}
         output-file: ${{ steps.review-files.outputs.review-file }}
 
+    - name: Add review pretext
+      if: steps.scope.outputs.reviewable == 'true' && steps.codex.outcome == 'success'
+      shell: bash
+      run: node "${{ github.action_path }}/annotate-review.mjs" "${{ steps.review-files.outputs.review-file }}"
+
     - name: Log Codex review completion
       if: always() && steps.scope.outputs.reviewable == 'true'
       shell: bash
