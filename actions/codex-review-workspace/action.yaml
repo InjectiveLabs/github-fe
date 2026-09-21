@@ -8,6 +8,10 @@ inputs:
   openai-api-key:
     description: OpenAI API key for Codex
     required: true
+  effort:
+    description: Codex reasoning effort
+    required: false
+    default: medium
 
 outputs:
   reviewable:
@@ -55,6 +59,19 @@ runs:
         echo "prompt-file=$prompt_file" >> "$GITHUB_OUTPUT"
         echo "review-file=$review_file" >> "$GITHUB_OUTPUT"
 
+    - name: Resolve reasoning effort
+      id: effort
+      if: steps.scope.outputs.reviewable == 'true'
+      shell: bash
+      env:
+        INPUT_EFFORT: ${{ inputs.effort }}
+      run: |
+        case "$INPUT_EFFORT" in
+          low|medium|high|xhigh) effort="$INPUT_EFFORT" ;;
+          *) effort=medium ;;
+        esac
+        echo "effort=$effort" >> "$GITHUB_OUTPUT"
+
     - name: Run Codex review
       id: codex
       if: steps.scope.outputs.reviewable == 'true'
@@ -63,7 +80,7 @@ runs:
       with:
         openai-api-key: ${{ inputs.openai-api-key }}
         model: gpt-5.3-codex
-        effort: medium
+        effort: ${{ steps.effort.outputs.effort }}
         sandbox: read-only
         prompt-file: ${{ steps.review-files.outputs.prompt-file }}
         output-file: ${{ steps.review-files.outputs.review-file }}
