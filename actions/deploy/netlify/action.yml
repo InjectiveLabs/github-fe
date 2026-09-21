@@ -12,6 +12,10 @@ inputs:
     description: 'Deploy to production (--prod flag)'
     required: false
     default: 'false'
+  build:
+    description: 'Run a build before deploying'
+    required: false
+    default: 'false'
 
 outputs:
   deploy-url:
@@ -26,16 +30,26 @@ runs:
       shell: bash
       run: |
         PROD_FLAG=""
+        BUILD_FLAG=""
+
         if [ "${{ inputs.production }}" = "true" ]; then
           PROD_FLAG="--prod"
         fi
 
-        OUTPUT=$(netlify deploy \
+        if [ "${{ inputs.build }}" != "true" ]; then
+          BUILD_FLAG="--no-build"
+        fi
+
+        if ! OUTPUT=$(netlify deploy \
           --dir ./.output/public \
           --auth "${{ inputs.netlify-token }}" \
           --site "${{ inputs.netlify-site-id }}" \
           $PROD_FLAG \
-          --json)
+          $BUILD_FLAG \
+          --json); then
+          printf '%s\n' "$OUTPUT"
+          exit 1
+        fi
 
         echo "$OUTPUT" | jq .
 
