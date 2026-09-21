@@ -3,7 +3,7 @@ description: 'Install Node + pnpm, install dependencies, run security scan, buil
 
 inputs:
   install-netlify:
-    description: 'Install netlify-cli@17.36.4 globally'
+    description: 'Install netlify-cli globally'
     required: false
     default: 'false'
 
@@ -27,7 +27,7 @@ runs:
     - name: Install Netlify CLI
       if: inputs.install-netlify == 'true'
       shell: bash
-      run: npm install netlify-cli@17.36.4 -g
+      run: npm install netlify-cli -g
 
     - name: Security scan
       uses: InjectiveLabs/github-fe/actions/security-scan@master
