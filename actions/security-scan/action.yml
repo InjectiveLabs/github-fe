@@ -6,6 +6,10 @@ inputs:
     description: 'Path to the project directory to scan'
     required: false
     default: '.'
+  ignore-wallet-address-warnings:
+    description: 'Do not warn when the only finding is generic Ethereum wallet address patterns (common in web3 code)'
+    required: false
+    default: 'true'
 
 runs:
   using: 'composite'
@@ -58,11 +62,35 @@ runs:
 
         echo ""
         echo "Running detector..."
-        SCAN_OUTPUT=$("$DETECTOR_DIR/shai-hulud-detector.sh" "${{ inputs.directory }}" 2>&1) || SCAN_EXIT=$?
+        # JSON report lets us triage MEDIUM findings below (requires jq; the detector exits 1 without it)
+        JSON_REPORT="${RUNNER_TEMP:-/tmp}/shai-hulud-report.json"
+        rm -f "$JSON_REPORT"
+        DETECTOR_ARGS=()
+        if [ "${{ inputs.ignore-wallet-address-warnings }}" = "true" ] && command -v jq >/dev/null 2>&1; then
+          DETECTOR_ARGS+=(--json "$JSON_REPORT")
+        fi
+
+        SCAN_OUTPUT=$("$DETECTOR_DIR/shai-hulud-detector.sh" "${DETECTOR_ARGS[@]}" "${{ inputs.directory }}" 2>&1) || SCAN_EXIT=$?
         SCAN_EXIT=${SCAN_EXIT:-0}
 
         echo "$SCAN_OUTPUT"
         echo ""
+
+        # The detector flags any code file containing a 0x + 40-hex string near the words
+        # ethereum/wallet/address/crypto (MEDIUM). That is normal in web3 apps and cannot be
+        # disabled upstream, so downgrade the run when it is the ONLY medium-risk finding.
+        # Known attacker wallets and other crypto findings use different messages and stay.
+        if [ $SCAN_EXIT -eq 2 ] && [ -s "$JSON_REPORT" ]; then
+          WALLET_MSG="Ethereum wallet address patterns detected"
+          OTHER_FINDINGS=$(jq --arg m "$WALLET_MSG" \
+            '[.findings[] | select(.severity == "HIGH" or (.severity == "MEDIUM" and .message != $m))] | length' \
+            "$JSON_REPORT" 2>/dev/null || echo "unknown")
+          if [ "$OTHER_FINDINGS" = "0" ]; then
+            SUPPRESSED=$(jq --arg m "$WALLET_MSG" '[.findings[] | select(.message == $m)] | length' "$JSON_REPORT")
+            echo "::notice::Ignored ${SUPPRESSED} 'Ethereum wallet address patterns' finding(s) (expected in web3 code)."
+            SCAN_EXIT=0
+          fi
+        fi
 
         # Extract and annotate compromised packages for GitHub Actions
         if [ $SCAN_EXIT -ne 0 ]; then
@@ -109,7 +137,6 @@ runs:
           echo "::notice::Security scan passed — no compromised or vulnerable packages detected."
         elif [ $SCAN_EXIT -eq 2 ]; then
           echo "::warning::Security scan found MEDIUM risk indicators. Review required."
-          echo "::endgroup::"
         else
           echo "::error::Security scan FAILED — compromised or vulnerable packages detected. Halting workflow."
           echo "::endgroup::"
