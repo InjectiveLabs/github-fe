@@ -42,6 +42,8 @@ test('filters lockfiles, generated/vendor code, and binary assets', () => {
     'products/true-current/public/images/logo.png',
     'products/true-current/public/audio/order-fill.mp3',
     'products/true-current/public/fonts/Geist-Regular.woff2',
+    'products/explorer/app/app/json/tokens/mainnet.json',
+    'json/markets/spot/devnet.json',
   ]) {
     assert.equal(isReviewable(file), false, file)
   }
@@ -51,6 +53,9 @@ test('retains ordinary source files', () => {
   assert.equal(isReviewable('apps/web/src/App.vue'), true)
   assert.equal(isReviewable('packages/sdk/src/client.ts'), true)
   assert.equal(isReviewable('products/true-current/public/_redirects'), true)
+  assert.equal(isReviewable('products/explorer/package.json'), true)
+  assert.equal(isReviewable('tsconfig.json'), true)
+  assert.equal(isReviewable('shared/types/src/json-schema.json'), true)
 })
 
 test('preserves rename paths from Git name-status output', () => {

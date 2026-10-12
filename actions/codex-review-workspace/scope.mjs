@@ -7,6 +7,8 @@ const ignoredLockfile = /^(?:package-lock\.json|pnpm-lock\.yaml|yarn\.lock)$/
 const generatedFile = /(?:^|\/)[^/]+\.generated\.[^/]+$/
 const vendorBundle = /(?:^|\/)charting_library\/bundles\//
 const ignoredExtension = /\.(?:jpe?g|mp3|png|svg|webp|woff2)$/i
+// Bootstrapped data files (token lists, markets, validators) under a json/ directory.
+const dataJson = /(?:^|\/)json\/.+\.json$/i
 const maxReviewableFiles = 150
 const maxChangedLines = 15000
 const maxDiffBytes = 512 * 1024
@@ -17,6 +19,7 @@ export function isReviewable(file) {
     && !generatedFile.test(file)
     && !vendorBundle.test(file)
     && !ignoredExtension.test(file)
+    && !dataJson.test(file)
 }
 
 export function parseNameStatus(output) {
