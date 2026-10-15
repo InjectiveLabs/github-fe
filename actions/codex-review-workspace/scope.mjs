@@ -85,14 +85,14 @@ export function resolveChanges(workspace) {
   return { files, changedLines }
 }
 
-function createDiff(workspace, files, diffPath) {
+function createDiff(workspace, files, diffPath, bypassLimits) {
   const paths = [...new Set(files.flatMap(({ path: file, previousPath }) =>
     previousPath ? [previousPath, file] : [file]
   ))]
   const result = spawnSync(
     'git',
     ['diff', '--no-ext-diff', '--no-textconv', '-M', '--unified=20', 'HEAD^1', 'HEAD', '--', ...paths],
-    { cwd: workspace, encoding: 'buffer', maxBuffer: maxDiffBytes + 1 },
+    { cwd: workspace, encoding: 'buffer', maxBuffer: bypassLimits ? Infinity : maxDiffBytes + 1 },
   )
   if (result.error?.code === 'ENOBUFS') return false
   if (result.error) throw result.error
@@ -101,9 +101,9 @@ function createDiff(workspace, files, diffPath) {
   return true
 }
 
-export function createScope(workspace, diffPath) {
+export function createScope(workspace, diffPath, bypassLimits = false) {
   const { files, changedLines } = resolveChanges(workspace)
-  const exceedsLimit = files.length > maxReviewableFiles || changedLines > maxChangedLines
+  const exceedsLimit = !bypassLimits && (files.length > maxReviewableFiles || changedLines > maxChangedLines)
   if (files.length === 0 || exceedsLimit) {
     return {
       files,
@@ -114,7 +114,7 @@ export function createScope(workspace, diffPath) {
     }
   }
 
-  if (!createDiff(workspace, files, diffPath)) {
+  if (!createDiff(workspace, files, diffPath, bypassLimits)) {
     return {
       files,
       changedLines,
@@ -136,7 +136,7 @@ function setOutput(name, value) {
 function main() {
   const workspace = process.env.GITHUB_WORKSPACE || process.cwd()
   const diffPath = path.join(process.env.RUNNER_TEMP || workspace, 'codex-review.diff')
-  const scope = createScope(workspace, diffPath)
+  const scope = createScope(workspace, diffPath, process.env.BYPASS_LIMITS === 'true')
   setOutput('reviewable', String(scope.reviewable))
   setOutput('candidate-count', scope.files.length)
   setOutput('changed-lines', scope.changedLines)

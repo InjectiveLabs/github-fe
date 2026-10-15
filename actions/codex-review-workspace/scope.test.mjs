@@ -24,6 +24,11 @@ test('checks out the PR merge commit with both parents available', () => {
   assert.equal(checkout.with['fetch-depth'], 2)
   assert.equal(checkout.with['persist-credentials'], false)
   assert.equal(action.inputs.effort.default, 'medium')
+  assert.equal(action.inputs['bypass-limits'].default, 'false')
+  assert.equal(
+    action.runs.steps.find((step) => step.id === 'scope').env.BYPASS_LIMITS,
+    '${{ inputs.bypass-limits }}',
+  )
   const resolveEffort = action.runs.steps.find((step) => step.name === 'Resolve reasoning effort')
   assert.match(resolveEffort.run, /low\|medium\|high\|xhigh/)
   assert.match(resolveEffort.run, /\*\) effort=medium/)
@@ -99,6 +104,25 @@ test('resolves a filtered scope for a merge commit', () => {
     assert.equal(scope.reviewable, true)
     assert.match(readFileSync(diffPath, 'utf8'), /version = 2/)
     assert.doesNotMatch(readFileSync(diffPath, 'utf8'), /lockfileVersion/)
+
+    const action = parse(readFileSync(new URL('./action.yaml', import.meta.url), 'utf8'))
+    const prepare = action.runs.steps.find((step) => step.name === 'Prepare review files')
+    execFileSync('bash', ['-e', '-c', prepare.run
+      .replaceAll('${{ github.action_path }}', path.resolve('actions/codex-review-workspace'))
+      .replaceAll('${{ steps.scope.outputs.diff-file }}', diffPath)], {
+      cwd: workspace,
+      env: {
+        ...process.env,
+        RUNNER_TEMP: workspace,
+        GITHUB_OUTPUT: path.join(workspace, 'outputs'),
+        GITHUB_REPOSITORY: 'owner/repository',
+        GITHUB_SERVER_URL: 'https://github.com',
+        GITHUB_SHA: 'default-branch-sha',
+      },
+    })
+    const prompt = readFileSync(path.join(workspace, 'codex-review-workspace-prompt.md'), 'utf8')
+    assert.ok(prompt.includes(`/blob/${git('rev-parse', 'HEAD').toString('utf8').trim()}/`))
+    assert.ok(!prompt.includes('default-branch-sha'))
   } finally {
     rmSync(workspace, { force: true, recursive: true })
   }
@@ -159,10 +183,69 @@ test('skips an oversized filtered diff without truncating it', () => {
     assert.equal(scope.reviewable, false)
     assert.equal(scope.skipReason, 'diff-size')
     assert.throws(() => readFileSync(diffPath))
+
+    const manualScope = createScope(workspace, diffPath, true)
+    assert.equal(manualScope.reviewable, true)
+    assert.equal(manualScope.skipReason, '')
+    const diff = readFileSync(diffPath, 'utf8')
+    assert.ok(Buffer.byteLength(diff) > 512 * 1024)
+    assert.ok(diff.includes(`+export const payload = '${'x'.repeat(512 * 1024)}'\n`))
   } finally {
     rmSync(workspace, { force: true, recursive: true })
   }
 })
+
+for (const [limit, fileCount, content] of [
+  ['file count', 151, 'export const changed = true\n'],
+  ['changed lines', 1, 'line\n'.repeat(15001)],
+]) {
+  test(`bypasses the ${limit} limit only when explicitly requested`, () => {
+    const workspace = mkdtempSync(path.join(tmpdir(), 'codex-review-workspace-'))
+    const git = (...args) => execFileSync('git', args, { cwd: workspace })
+
+    try {
+      git('init', '--initial-branch=main')
+      git('config', 'user.email', 'test@example.com')
+      git('config', 'user.name', 'Test')
+      git('config', 'commit.gpgsign', 'false')
+      git('commit', '--allow-empty', '-m', 'base')
+      git('checkout', '-b', 'feature')
+      for (let index = 0; index < fileCount; index += 1) {
+        writeFileSync(path.join(workspace, `file-${index}.ts`), content)
+      }
+      git('add', '.')
+      git('commit', '-m', 'large PR')
+      git('checkout', 'main')
+      git('merge', '--no-ff', 'feature', '-m', 'merge feature')
+
+      const diffPath = path.join(workspace, 'codex-review.diff')
+      const scope = createScope(workspace, diffPath)
+      assert.equal(scope.reviewable, false)
+      assert.equal(scope.skipReason, 'limit')
+      assert.throws(() => readFileSync(diffPath))
+
+      const outputPath = path.join(workspace, 'outputs')
+      for (const bypassLimits of ['false', 'true']) {
+        writeFileSync(outputPath, '')
+        execFileSync(process.execPath, [path.resolve('actions/codex-review-workspace/scope.mjs')], {
+          env: {
+            ...process.env,
+            GITHUB_WORKSPACE: workspace,
+            RUNNER_TEMP: workspace,
+            GITHUB_OUTPUT: outputPath,
+            BYPASS_LIMITS: bypassLimits,
+          },
+        })
+        const output = readFileSync(outputPath, 'utf8')
+        assert.match(output, new RegExp(`^reviewable=${bypassLimits}$`, 'm'))
+        assert.match(output, new RegExp(`^candidate-count=${fileCount}$`, 'm'))
+      }
+      assert.ok(readFileSync(diffPath, 'utf8').includes(`+${content.trimEnd()}`.replaceAll('\n', '\n+')))
+    } finally {
+      rmSync(workspace, { force: true, recursive: true })
+    }
+  })
+}
 
 test('puts the complete diff after the untrusted-data boundary in the prompt', () => {
   const directory = mkdtempSync(path.join(tmpdir(), 'codex-review-prompt-'))
