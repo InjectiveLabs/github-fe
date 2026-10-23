@@ -49,6 +49,8 @@ test('filters lockfiles, generated/vendor code, and binary assets', () => {
     'products/true-current/public/fonts/Geist-Regular.woff2',
     'products/explorer/app/app/json/tokens/mainnet.json',
     'json/markets/spot/devnet.json',
+    'products/one/tests/unit/swap/fixtures/calldata-coverage.json',
+    'shared/types/src/generated/bff-spec.json',
   ]) {
     assert.equal(isReviewable(file), false, file)
   }
@@ -61,6 +63,9 @@ test('retains ordinary source files', () => {
   assert.equal(isReviewable('products/explorer/package.json'), true)
   assert.equal(isReviewable('tsconfig.json'), true)
   assert.equal(isReviewable('shared/types/src/json-schema.json'), true)
+  assert.equal(isReviewable('products/one/tests/unit/swap/calldata.test.ts'), true)
+  assert.equal(isReviewable('products/one/tsconfig.json'), true)
+  assert.equal(isReviewable('package.json'), true)
 })
 
 test('preserves rename paths from Git name-status output', () => {

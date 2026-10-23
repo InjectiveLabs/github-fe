@@ -7,8 +7,9 @@ const ignoredLockfile = /^(?:package-lock\.json|pnpm-lock\.yaml|yarn\.lock)$/
 const generatedFile = /(?:^|\/)[^/]+\.generated\.[^/]+$/
 const vendorBundle = /(?:^|\/)charting_library\/bundles\//
 const ignoredExtension = /\.(?:jpe?g|mp3|png|svg|webp|woff2)$/i
-// Bootstrapped data files (token lists, markets, validators) under a json/ directory.
-const dataJson = /(?:^|\/)json\/.+\.json$/i
+// JSON data: bootstrapped lists under json/, recorded test fixtures under fixtures/,
+// and generated specs under generated/.
+const dataJson = /(?:^|\/)(?:json|fixtures|generated)\/.+\.json$/i
 const maxReviewableFiles = 150
 const maxChangedLines = 15000
 const maxDiffBytes = 512 * 1024

@@ -49,6 +49,17 @@ An intelligent action that generates comprehensive release notes from git commit
 
 **Use Case:** Essential for automated release workflows that need professional release notes with proper attribution.
 
+### 🤖 [Codex Workspace Review](./actions/codex-review-workspace/)
+
+Reviews a filtered PR merge diff, with automatic limits of 150 reviewable files,
+15,000 changed lines, and 512 KiB of diff content. Authorized manual reviews can
+set `bypass-limits: 'true'` to bypass all three limits.
+
+In `injective-uis`, comment `@codex_review` on a PR to request a manual review.
+The command requires write, maintain, or admin access, and both the caller
+workflow and this action update must be merged before it works. See the
+[action documentation](./actions/codex-review-workspace/README.md) for usage.
+
 ### 📦 [Package Bump](./actions/package-bump/)
 
 A utility action that automatically bumps package versions and commits changes to a repository.
