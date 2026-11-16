@@ -1,10 +1,12 @@
 # Codex Workspace Review
 
-Reviews a filtered PR merge diff. Automatic runs skip PRs above 150 reviewable
-files, 15,000 changed lines, or a 512 KiB filtered diff.
+Codex reviews a PR merge commit against [`review-standards.md`](review-standards.md)
+(the thermo-nuclear code quality review skill, minus its frontmatter). Automatic
+runs skip PRs above 150 reviewable files, 15,000 changed lines, or a 512 KiB
+filtered diff.
 
 For a manual review, pass `bypass-limits: 'true'` to bypass all three size limits.
-Filtering and merge-commit validation still apply. The calling workflow must
+Merge-commit validation still applies. The calling workflow must
 authorize the request before enabling this input.
 
 ```yaml

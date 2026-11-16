@@ -1,6 +1,5 @@
 import { execFileSync, spawnSync } from 'node:child_process'
 import { writeFileSync } from 'node:fs'
-import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 const ignoredLockfile = /^(?:package-lock\.json|pnpm-lock\.yaml|yarn\.lock)$/
@@ -86,46 +85,31 @@ export function resolveChanges(workspace) {
   return { files, changedLines }
 }
 
-function createDiff(workspace, files, diffPath, bypassLimits) {
+function fitsDiffSizeLimit(workspace, files) {
   const paths = [...new Set(files.flatMap(({ path: file, previousPath }) =>
     previousPath ? [previousPath, file] : [file]
   ))]
   const result = spawnSync(
     'git',
     ['diff', '--no-ext-diff', '--no-textconv', '-M', '--unified=20', 'HEAD^1', 'HEAD', '--', ...paths],
-    { cwd: workspace, encoding: 'buffer', maxBuffer: bypassLimits ? Infinity : maxDiffBytes + 1 },
+    { cwd: workspace, encoding: 'buffer', maxBuffer: maxDiffBytes + 1 },
   )
   if (result.error?.code === 'ENOBUFS') return false
   if (result.error) throw result.error
-  if (result.status !== 0) throw new Error(result.stderr.toString('utf8').trim() || 'Could not create filtered diff.')
-  writeFileSync(diffPath, result.stdout, { mode: 0o600 })
+  if (result.status !== 0) throw new Error(result.stderr.toString('utf8').trim() || 'Could not measure filtered diff.')
   return true
 }
 
-export function createScope(workspace, diffPath, bypassLimits = false) {
+function limitReason(workspace, files, changedLines) {
+  if (files.length > maxReviewableFiles || changedLines > maxChangedLines) return 'limit'
+  if (!fitsDiffSizeLimit(workspace, files)) return 'diff-size'
+  return ''
+}
+
+export function createScope(workspace, bypassLimits = false) {
   const { files, changedLines } = resolveChanges(workspace)
-  const exceedsLimit = !bypassLimits && (files.length > maxReviewableFiles || changedLines > maxChangedLines)
-  if (files.length === 0 || exceedsLimit) {
-    return {
-      files,
-      changedLines,
-      diffPath: '',
-      reviewable: false,
-      skipReason: exceedsLimit ? 'limit' : '',
-    }
-  }
-
-  if (!createDiff(workspace, files, diffPath, bypassLimits)) {
-    return {
-      files,
-      changedLines,
-      diffPath: '',
-      reviewable: false,
-      skipReason: 'diff-size',
-    }
-  }
-
-  return { files, changedLines, diffPath, reviewable: true, skipReason: '' }
+  const skipReason = files.length === 0 || bypassLimits ? '' : limitReason(workspace, files, changedLines)
+  return { files, changedLines, reviewable: files.length > 0 && !skipReason, skipReason }
 }
 
 function setOutput(name, value) {
@@ -136,12 +120,10 @@ function setOutput(name, value) {
 
 function main() {
   const workspace = process.env.GITHUB_WORKSPACE || process.cwd()
-  const diffPath = path.join(process.env.RUNNER_TEMP || workspace, 'codex-review.diff')
-  const scope = createScope(workspace, diffPath, process.env.BYPASS_LIMITS === 'true')
+  const scope = createScope(workspace, process.env.BYPASS_LIMITS === 'true')
   setOutput('reviewable', String(scope.reviewable))
   setOutput('candidate-count', scope.files.length)
   setOutput('changed-lines', scope.changedLines)
-  setOutput('diff-file', scope.diffPath)
   setOutput('skip-reason', scope.skipReason)
 }
 

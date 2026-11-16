@@ -1,5 +1,5 @@
 name: Codex Workspace Review
-description: Check out and review a filtered pull request merge workspace
+description: Check out and review a pull request merge workspace
 
 inputs:
   pull-request-number:
@@ -61,7 +61,7 @@ runs:
       run: |
         prompt_file="${RUNNER_TEMP}/codex-review-workspace-prompt.md"
         review_file="${RUNNER_TEMP}/codex-review-workspace.md"
-        GITHUB_SHA="$(git rev-parse HEAD)" node "${{ github.action_path }}/prompt.mjs" "$prompt_file" "${{ steps.scope.outputs.diff-file }}"
+        GITHUB_SHA="$(git rev-parse HEAD)" node "${{ github.action_path }}/prompt.mjs" "$prompt_file"
         echo "prompt-file=$prompt_file" >> "$GITHUB_OUTPUT"
         echo "review-file=$review_file" >> "$GITHUB_OUTPUT"
 
@@ -85,7 +85,7 @@ runs:
       uses: openai/codex-action@52fe01ec70a42f454c9d2ebd47598f9fd6893d56 # v1.11; v1.12 can hang after final output
       with:
         openai-api-key: ${{ inputs.openai-api-key }}
-        model: gpt-5.3-codex
+        model: gpt-6.1-sol
         effort: ${{ steps.effort.outputs.effort }}
         sandbox: read-only
         prompt-file: ${{ steps.review-files.outputs.prompt-file }}
@@ -114,8 +114,5 @@ runs:
       if: always()
       shell: bash
       env:
-        DIFF_FILE: ${{ steps.scope.outputs.diff-file }}
         PROMPT_FILE: ${{ runner.temp }}/codex-review-workspace-prompt.md
-      run: |
-        [[ -z "$DIFF_FILE" ]] || rm -f -- "$DIFF_FILE"
-        rm -f -- "$PROMPT_FILE"
+      run: rm -f -- "$PROMPT_FILE"
