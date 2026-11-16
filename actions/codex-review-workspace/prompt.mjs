@@ -23,7 +23,7 @@ Report only:
 - the top blockers from the approval bar, up to 5, and
 - the top highest-impact structural changes, up to 3.
 If there are none, respond exactly with
-\`LGTM\`.
+\`LGTM\`
 Leave out everything else: no nits, no lower-value suggestions, and no list of things that are fine.
 File references must use this format:
 \`[${repository}/path/to/file.ts:42](${serverUrl}/${repository}/blob/${sha}/path/to/file.ts#L42)\`.
