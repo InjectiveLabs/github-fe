@@ -82,10 +82,10 @@ runs:
       id: codex
       if: steps.scope.outputs.reviewable == 'true'
       continue-on-error: true
-      uses: openai/codex-action@52fe01ec70a42f454c9d2ebd47598f9fd6893d56 # v1.11; v1.12 can hang after final output
+      uses: openai/codex-action@306c6a196a99dcc6582530c396a19d2672d5e9ec # v1.14
       with:
         openai-api-key: ${{ inputs.openai-api-key }}
-        model: gpt-5.3-codex
+        model: gpt-6.1-terra
         effort: ${{ steps.effort.outputs.effort }}
         sandbox: read-only
         prompt-file: ${{ steps.review-files.outputs.prompt-file }}
