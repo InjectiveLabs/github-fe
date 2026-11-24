@@ -26,6 +26,7 @@ runs:
           --exclude "robots.txt" --exclude "favicon*" \
           --exclude "manifest.json" --exclude "site.webmanifest" \
           --exclude "browserconfig.xml" --exclude "sitemap.xml" \
+          --exclude ".well-known/apple-app-site-association" \
           --cache-control "max-age=2592000,public" \
           --expires 2034-01-01T00:00:00Z
 
@@ -44,6 +45,19 @@ runs:
           --include "browserconfig.xml" --include "sitemap.xml" \
           --cache-control "no-cache"
 
+    # The Apple app-site-association file has no extension, so `aws s3 sync`
+    # would store it as binary/octet-stream with long-lived asset headers.
+    # Apple requires it to be served as JSON at this exact path.
+    - name: Upload Apple app-site-association to S3
+      shell: bash
+      run: |
+        AASA=.output/public/.well-known/apple-app-site-association
+        if [ -f "$AASA" ]; then
+          aws s3 cp "$AASA" "s3://${{ inputs.s3-bucket }}/.well-known/apple-app-site-association" \
+            --content-type "application/json" \
+            --cache-control "max-age=3600,public"
+        fi
+
     - name: Delete stale assets from S3
       shell: bash
       run: |
@@ -54,6 +68,7 @@ runs:
           --exclude "robots.txt" --exclude "favicon*" \
           --exclude "manifest.json" --exclude "site.webmanifest" \
           --exclude "browserconfig.xml" --exclude "sitemap.xml" \
+          --exclude ".well-known/apple-app-site-association" \
           --cache-control "max-age=2592000,public" \
           --expires 2034-01-01T00:00:00Z
 
